@@ -13,4 +13,4 @@ class Product(Model):
 
 class Pages(Model):
     organization = ForeignKeyField(Organization)
-    url = CharField(unique=True)   
+    url = CharField(unique=True)

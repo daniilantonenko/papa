@@ -1,8 +1,8 @@
 from peewee import *
-from models import Organization, Product, Pages
+from models import *
 
 
-db = SqliteDatabase(r'C:\Users\DNS1\Documents\Dev\PAPA\database.db')
+db = SqliteDatabase('./database.db')
 
 class Organization(Organization):
     class Meta:
