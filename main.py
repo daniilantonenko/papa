@@ -8,7 +8,7 @@ def scan(urls, organization):
             data = p.scan()
 
             if data is not None:
-                product = Product(organization=organization)
+                product = Product(organization=organization, page=p)
                 product.save_data(data=data)
             else:
                 print(f"No data found failed for {p.url}")
@@ -16,7 +16,7 @@ def scan(urls, organization):
         else:
             print(f"Page creation failed for {url}")
             return
-            
+
 org = Organization.create_or_update(
      name='STAN', 
      domain='https://www.stan.su')
@@ -31,7 +31,6 @@ prof_price = Proffile.create_or_update(
     value_attribute='content'
 )
 
-
 proffile_article = Proffile.create_or_update(
     organization=org,
     name='article',
@@ -41,8 +40,6 @@ proffile_article = Proffile.create_or_update(
     template=r'(\d[\d\w]*)'
 )
 
-
-
 proffile_name = Proffile.create_or_update(
     organization=org,
     name='name',
@@ -51,7 +48,6 @@ proffile_name = Proffile.create_or_update(
     value='pagetitle'
 )
      
-
 proffile_image = Proffile.create_or_update(
     organization=org,
     name='image',

@@ -1,7 +1,8 @@
-from peewee import CharField, ForeignKeyField, Model, SqliteDatabase, IntegrityError
+from peewee import *
 from bs4 import BeautifulSoup
 import requests
 from parse import parse
+import datetime
 
 db = SqliteDatabase('./database.db')
 
@@ -42,12 +43,17 @@ class Organization(BaseModel):
 
 class Proffile(BaseModel):
     organization = ForeignKeyField(Organization, backref='proffiles')
-    name = CharField(unique=True)  # Price
+    name = CharField()  # Price
     tag = CharField()  # span
     attribute = CharField()  # class
     value = CharField(null=True)  # section-price
     template = CharField(null=True)  # \d[\d\w]*
     value_attribute = CharField(null=True)  # content
+
+    class Meta:
+        indexes = (
+            (("organization", "name"), True),
+        )
 
     @classmethod
     def create_or_update(cls, organization, name, tag, attribute, value=None, template=None, value_attribute=None):
@@ -56,7 +62,7 @@ class Proffile(BaseModel):
             proffile_id = (Proffile
                 .insert(organization=organization, name=name, tag=tag, attribute=attribute, value=value, template=template, value_attribute=value_attribute)
                 .on_conflict(
-                    conflict_target=[Proffile.name],
+                    conflict_target=[Proffile.organization, Proffile.name],
                     preserve=[Proffile.id],
                     update={
                         Proffile.tag: tag,
@@ -70,56 +76,6 @@ class Proffile(BaseModel):
         else:
             proffile_id = proffile.id
         return proffile_id
-    
-
-class Product(BaseModel):
-    organization = ForeignKeyField(Organization, backref='products')
-    article = CharField(unique=True)
-    name = CharField()
-    price = CharField()
-    image = CharField()
-
-    def save_data(self, data):
-        def find_by_proffile(proffile_name, data):
-            try:
-                proffile = Proffile.get(Proffile.organization == self.organization , Proffile.name == proffile_name)
-                element = data.find(proffile.tag, {proffile.attribute: proffile.value})
-                if element is not None:
-                    if proffile.value_attribute:
-                        element = element.attrs.get(proffile.value_attribute, '')
-                    text = element.text.strip() if hasattr(element, 'text') else element
-                    return parse(text, proffile.template) if proffile.template else text
-            except Proffile.DoesNotExist:
-                print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
-            return None
-
-        if data is not None:
-            article = find_by_proffile("article", data)
-            if article is None:
-                print(f"Article '{article}' not found")
-                return
-
-            name = find_by_proffile("name", data)
-            price = find_by_proffile("price", data)
-            image = find_by_proffile("image", data)
-            url_image = self.organization.domain + image if image else ""
-
-            try:
-                product = Product.get(Product.organization == self.organization, Product.article == article)
-                product.name = name or product.name
-                product.price = price or product.price
-                product.image = url_image or product.image
-                product.save()
-            except Product.DoesNotExist:
-                Product.create(
-                    organization=self.organization,
-                    article=article,
-                    name=name or "Unknown",
-                    price=price or "Unknown",
-                    image=url_image
-                )
-        else:
-            print("No data found")
 
 class Page(BaseModel):
     url = CharField(unique=True)
@@ -156,6 +112,89 @@ class Page(BaseModel):
         except requests.RequestException as e:
             print(f"Failed to scan {self.url}: {e}")
             return None
+
+class Product(BaseModel):
+    organization = ForeignKeyField(Organization, backref='products')
+    page = ForeignKeyField(Page, backref='products', unique=True)
+    article = CharField(null=True)
+    name = CharField(null=True)
+    price = CharField(null=True)
+    image = CharField(null=True)
+    last_update = DateTimeField(default=datetime.datetime.now)
+
+    @classmethod    
+    def create_or_update(cls,organization,page,article,name,price,image):
+
+        product = cls.get_or_none(cls.page == page)
+
+        if product is None:
+            product_id = (Product
+                .insert(organization=organization, page=page,article=article,name=name,price=price,image=image)
+            .on_conflict(
+                conflict_target=[Product.page],
+                preserve=[Product.id],
+                update={
+                    Product.article: article,
+                    Product.name: name,
+                    Product.price: price,
+                    Product.image: image
+                }
+            )
+            .execute())
+        else:
+            product_id = product.id
+
+        return product_id
+
+    def save_data(self, data):
+        
+        def find_by_proffile(proffile_name, data):
+            try:
+                proffile = Proffile.get(Proffile.organization == self.organization , Proffile.name == proffile_name)
+                if proffile is None:
+                    print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
+                    return
+                element = data.find(proffile.tag, {proffile.attribute: proffile.value})
+                if element is not None:
+                    if proffile.value_attribute:
+                        element = element.attrs.get(proffile.value_attribute, '')
+                    text = element.text.strip() if hasattr(element, 'text') else element
+                    return parse(text, proffile.template) if proffile.template else text
+            except Proffile.DoesNotExist:
+                print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
+            return None
+
+        if data is not None:
+            article = find_by_proffile("article", data)                
+            name = find_by_proffile("name", data)
+            price = find_by_proffile("price", data)
+            image = find_by_proffile("image", data)
+            url_image = self.organization.domain + image if image else ""
+            
+            product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image)
+
+            if product_id is None:
+                print(f"Product not found for page '{self.page.url}'")
+        else:
+            print("No data found")
+
+# TODO: add characteristics
+# Table Characteristics
+# organization
+# product
+# name
+# value
+# is_color
+
+# Proffiles example:
+
+# characteristics_name
+# span
+# itemprop = name
+
+# characteristics_value
+# span
+# itemprop = value
 
 db.connect()
 db.create_tables([Organization, Product, Proffile, Page])
