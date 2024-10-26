@@ -3,12 +3,15 @@ from bs4 import BeautifulSoup
 import requests
 from parse import parse
 import datetime
+import json
 
 db = SqliteDatabase('./database.db')
 
 class BaseModel(Model):
     class Meta:
         database = db
+
+    # TODO: def create_or_update(self, **kwargs):
 
 class Organization(BaseModel):
     name = CharField(unique=True)
@@ -113,6 +116,55 @@ class Page(BaseModel):
             print(f"Failed to scan {self.url}: {e}")
             return None
 
+# TODO: add characteristics
+# Table Characteristics
+# organization = 1
+# proffile = 13
+# name = Цвет
+# values = Белый, Черный, Красный
+# is_color = True
+
+# Proffiles example:
+
+# characteristics_name
+# span
+# itemprop = name
+
+# characteristics_value
+# span
+# itemprop = value
+
+class Characteristics(BaseModel):
+    organization = ForeignKeyField(Organization, backref='characteristics')
+    proffile = ForeignKeyField(Proffile, backref='proffiles')
+    name = CharField()
+    value = TextField()
+    is_color = BooleanField(default=False)
+
+    class Meta:
+        indexes = (
+            (("organization", "name"), True),
+        )
+
+    @classmethod
+    def create_or_update(cls, organization, proffile, name, value, is_color):
+        characteristics = cls.get_or_none(cls.organization == organization, cls.proffile == proffile, cls.name == name, cls.value == value, cls.is_color == is_color)
+        if characteristics is None:
+            characteristics_id = (Characteristics
+                .insert(organization=organization, proffile=proffile, name=name, value=value, is_color=is_color)
+                .on_conflict(
+                    conflict_target=[Characteristics.organization, Characteristics.name],
+                    preserve=[Characteristics.id],
+                    update={
+                        Characteristics.value: value,
+                        Characteristics.is_color: is_color
+                    }
+                )
+                .execute())
+        else:
+            characteristics_id = characteristics.id
+        return characteristics_id
+
 class Product(BaseModel):
     organization = ForeignKeyField(Organization, backref='products')
     page = ForeignKeyField(Page, backref='products', unique=True)
@@ -120,31 +172,37 @@ class Product(BaseModel):
     name = CharField(null=True)
     price = CharField(null=True)
     image = CharField(null=True)
+    characteristics = ManyToManyField(Characteristics, backref='products')
     last_update = DateTimeField(default=datetime.datetime.now)
 
-    @classmethod    
-    def create_or_update(cls,organization,page,article,name,price,image):
-
+    @classmethod
+    def create_or_update(cls, organization, page, article, name, price, image, characteristics_list=None):
         product = cls.get_or_none(cls.page == page)
 
         if product is None:
-            product_id = (Product
-                .insert(organization=organization, page=page,article=article,name=name,price=price,image=image)
-            .on_conflict(
-                conflict_target=[Product.page],
-                preserve=[Product.id],
-                update={
-                    Product.article: article,
-                    Product.name: name,
-                    Product.price: price,
-                    Product.image: image
-                }
+            # Создание нового продукта
+            product = cls.create(
+                organization=organization,
+                page=page,
+                article=article,
+                name=name,
+                price=price,
+                image=image
             )
-            .execute())
         else:
-            product_id = product.id
+            # Обновление существующего продукта
+            product.article = article
+            product.name = name
+            product.price = price
+            product.image = image
+            product.save()
 
-        return product_id
+        # Обновление характеристик
+        # Сначала удаляем старые связи, затем добавляем новые
+        product.characteristics.clear()
+        product.characteristics.add(characteristics_list)
+
+        return product.id
 
     def save_data(self, data):
         
@@ -163,38 +221,82 @@ class Product(BaseModel):
             except Proffile.DoesNotExist:
                 print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
             return None
+        
+        def find_by_proffile_table(table, name, value, data, **kwargs):
+            # Получаем Proffile для таблицы, имени и значения
+            priffile_table = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == table)
+            if priffile_table is None:
+                print(f"Proffile '{table}' not found for organization '{self.organization.name}'")
+                return []
+
+            proffile_name = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == name)
+            if proffile_name is None:
+                print(f"Proffile '{name}' not found for organization '{self.organization.name}'")
+                return []
+
+            proffile_value = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == value)
+            if proffile_value is None:
+                print(f"Proffile '{value}' not found for organization '{self.organization.name}'")
+                return []
+
+            # Поиск элемента таблицы
+            element_table = data.find(priffile_table.tag, {priffile_table.attribute: priffile_table.value})
+            if element_table is None:
+                print(f"Table not found")
+                return []
+
+            # Найдем все элементы таблицы
+            characteristics_elements = element_table.find_all('td')
+            if not characteristics_elements:
+                print(f"No characteristics found for organization '{self.organization.name}'")
+                return []
+
+            characteristics_list = []
+            # Проходим по элементам, по два за раз (имя и значение)
+            for i in range(0, len(characteristics_elements), 2):
+                name_element = characteristics_elements[i].find('span', itemprop="name")
+                element_name = name_element.text.strip() if name_element and hasattr(name_element, 'text') else None
+                if not element_name:
+                    continue
+
+                value_element = characteristics_elements[i + 1].find('span', itemprop="value")
+                element_value = value_element.text.strip() if value_element and hasattr(value_element, 'text') else None
+                if not element_value:
+                    continue
+
+                # Создание или обновление характеристики
+                characteristic, created = Characteristics.get_or_create(
+                    organization=self.organization,
+                    proffile=proffile_name,
+                    name=element_name,
+                    defaults={'value': element_value, 'is_color': False}
+                )
+                if not created:
+                    characteristic.value = element_value
+                    characteristic.save()
+
+                # Добавляем в список
+                characteristics_list.append(characteristic)
+
+            return characteristics_list
+
 
         if data is not None:
             article = find_by_proffile("article", data)                
             name = find_by_proffile("name", data)
             price = find_by_proffile("price", data)
             image = find_by_proffile("image", data)
+            characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data)
             url_image = self.organization.domain + image if image else ""
             
-            product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image)
+            product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image,characteristics_list)
 
             if product_id is None:
                 print(f"Product not found for page '{self.page.url}'")
         else:
             print("No data found")
 
-# TODO: add characteristics
-# Table Characteristics
-# organization
-# product
-# name
-# value
-# is_color
-
-# Proffiles example:
-
-# characteristics_name
-# span
-# itemprop = name
-
-# characteristics_value
-# span
-# itemprop = value
+ProductCharacteristics = Product.characteristics.get_through_model()
 
 db.connect()
-db.create_tables([Organization, Product, Proffile, Page])
+db.create_tables([Organization, Product, Proffile, Page, Characteristics, ProductCharacteristics])

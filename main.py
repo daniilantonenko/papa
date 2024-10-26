@@ -57,11 +57,35 @@ proffile_image = Proffile.create_or_update(
     value_attribute='data-src'
 )  
 
-test_urls = ['https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/bomber_70/898642/',
-             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/bomber_71/898754/',
-             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/tolstovka_95/803848/',
-             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/tolstovka_65n/799055/',
-             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/tolstovka_65/202007/']
+proffile_charecteristics_table = Proffile.create_or_update(
+    organization=org,
+    name='characteristics_table',
+    tag='table',
+    attribute='class',
+    value='props_list'
+)
+
+proffile_charecteristics_name = Proffile.create_or_update(
+    organization=org,
+    name='characteristics_name',
+    tag='span',
+    attribute='itemprop',
+    value='value'
+)
+
+proffile_charecteristics_value = Proffile.create_or_update(
+    organization=org,
+    name='characteristics_value',
+    tag='span',
+    attribute='itemprop',
+    value='value'
+)
+
+test_urls = ['https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/bomber_70/898642/']
+#             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/bomber_71/898754/',
+#             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/tolstovka_95/803848/',
+#             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/tolstovka_65n/799055/',
+#             'https://www.stan.su/catalog/odezhda_1/bombery_i_olimpiyki/tolstovka_65/202007/']
 
 scan(test_urls, org)
 
