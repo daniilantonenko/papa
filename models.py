@@ -52,6 +52,7 @@ class Proffile(BaseModel):
     value = CharField(null=True)  # section-price
     template = CharField(null=True)  # \d[\d\w]*
     value_attribute = CharField(null=True)  # content
+    disable = TextField(null=True)
 
     class Meta:
         indexes = (
@@ -59,11 +60,11 @@ class Proffile(BaseModel):
         )
 
     @classmethod
-    def create_or_update(cls, organization, name, tag, attribute, value=None, template=None, value_attribute=None):
+    def create_or_update(cls, organization, name, tag, attribute, value=None, template=None, value_attribute=None, disable=None):
         proffile = cls.get_or_none(cls.organization == organization, cls.name == name, cls.tag == tag, cls.attribute == attribute, cls.value == value, cls.template == template, cls.value_attribute == value_attribute)
         if proffile is None:
             proffile_id = (Proffile
-                .insert(organization=organization, name=name, tag=tag, attribute=attribute, value=value, template=template, value_attribute=value_attribute)
+                .insert(organization=organization, name=name, tag=tag, attribute=attribute, value=value, template=template, value_attribute=value_attribute, disable=disable)
                 .on_conflict(
                     conflict_target=[Proffile.organization, Proffile.name],
                     preserve=[Proffile.id],
@@ -72,7 +73,8 @@ class Proffile(BaseModel):
                         Proffile.attribute: attribute,
                         Proffile.value: value,
                         Proffile.template: template,
-                        Proffile.value_attribute: value_attribute
+                        Proffile.value_attribute: value_attribute,
+                        Proffile.disable: disable
                     }
                 )
                 .execute())
@@ -140,6 +142,7 @@ class Characteristics(BaseModel):
     name = CharField()
     value = TextField()
     is_color = BooleanField(default=False)
+    disable = BooleanField(default=False)
 
     class Meta:
         indexes = (
@@ -147,17 +150,18 @@ class Characteristics(BaseModel):
         )
 
     @classmethod
-    def create_or_update(cls, organization, proffile, name, value, is_color):
-        characteristics = cls.get_or_none(cls.organization == organization, cls.proffile == proffile, cls.name == name, cls.value == value, cls.is_color == is_color)
+    def create_or_update(cls, organization, proffile, name, value, is_color,disable):
+        characteristics = cls.get_or_none(cls.organization == organization, cls.proffile == proffile, cls.name == name, cls.value == value, cls.is_color == is_color, cls.disable == disable)
         if characteristics is None:
             characteristics_id = (Characteristics
-                .insert(organization=organization, proffile=proffile, name=name, value=value, is_color=is_color)
+                .insert(organization=organization, proffile=proffile, name=name, value=value, is_color=is_color, disable=disable)
                 .on_conflict(
                     conflict_target=[Characteristics.organization, Characteristics.name],
                     preserve=[Characteristics.id],
                     update={
                         Characteristics.value: value,
-                        Characteristics.is_color: is_color
+                        Characteristics.is_color: is_color,
+                        Characteristics.disable: disable
                     }
                 )
                 .execute())
@@ -264,15 +268,21 @@ class Product(BaseModel):
                 if not element_value:
                     continue
 
+                if element_name in proffile_name.disable:
+                    disable = True
+                else:
+                    disable = False
+
                 # Создание или обновление характеристики
                 characteristic, created = Characteristics.get_or_create(
                     organization=self.organization,
                     proffile=proffile_name,
                     name=element_name,
-                    defaults={'value': element_value, 'is_color': False}
+                    defaults={'value': element_value, 'is_color': False, 'disable': disable}
                 )
                 if not created:
                     characteristic.value = element_value
+                    characteristic.disable = disable
                     characteristic.save()
 
                 # Добавляем в список

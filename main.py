@@ -45,7 +45,8 @@ proffile_name = Proffile.create_or_update(
     name='name',
     tag='h1',
     attribute='id',
-    value='pagetitle'
+    value='pagetitle',
+    template=r"^(.*?)\sSTAN\s(.*?)(?=,)"
 )
      
 proffile_image = Proffile.create_or_update(
@@ -70,7 +71,8 @@ proffile_charecteristics_name = Proffile.create_or_update(
     name='characteristics_name',
     tag='span',
     attribute='itemprop',
-    value='value'
+    value='value',
+    disable=["Торговая марка","Цвет основ."]
 )
 
 proffile_charecteristics_value = Proffile.create_or_update(
