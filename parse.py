@@ -7,9 +7,8 @@ def parse(string: str, template:str) -> str:
     :return: cleaned string
     """
     match = re.search(template, string)
-    if match:
-        article = match.group(1)
-        article = article.replace(' ', '')
-        return article
+    if match: 
+        string = " ".join(match.groups())
+        return string.strip()
     else:
         return None
