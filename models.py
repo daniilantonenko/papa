@@ -137,26 +137,27 @@ class Page(BaseModel):
 # itemprop = value
 
 class Characteristics(BaseModel):
-    organization = ForeignKeyField(Organization, backref='characteristics')
+    organization = ForeignKeyField(Organization, backref='organizations')
     proffile = ForeignKeyField(Proffile, backref='proffiles')
-    name = CharField()
-    value = TextField()
+    product = DeferredForeignKey('Product', backref='characteristics')
+    name = CharField(null=True)
+    value = CharField(null=True)
     is_color = BooleanField(default=False)
     disable = BooleanField(default=False)
 
     class Meta:
         indexes = (
-            (("organization", "name"), True),
+            (("organization", "name", "product"), True),
         )
 
     @classmethod
-    def create_or_update(cls, organization, proffile, name, value, is_color,disable):
-        characteristics = cls.get_or_none(cls.organization == organization, cls.proffile == proffile, cls.name == name, cls.value == value, cls.is_color == is_color, cls.disable == disable)
+    def create_or_update(cls, organization, proffile, product, name, value, is_color,disable):
+        characteristics = cls.get_or_none(cls.organization == organization, cls.proffile == proffile,cls.product == product, cls.name == name, cls.value == value, cls.is_color == is_color, cls.disable == disable)
         if characteristics is None:
             characteristics_id = (Characteristics
-                .insert(organization=organization, proffile=proffile, name=name, value=value, is_color=is_color, disable=disable)
+                .insert(organization=organization, proffile=proffile,product=product, name=name, value=value, is_color=is_color, disable=disable)
                 .on_conflict(
-                    conflict_target=[Characteristics.organization, Characteristics.name],
+                    conflict_target=[Characteristics.organization, Characteristics.name,Characteristics.product],
                     preserve=[Characteristics.id],
                     update={
                         Characteristics.value: value,
@@ -176,7 +177,7 @@ class Product(BaseModel):
     name = CharField(null=True)
     price = CharField(null=True)
     image = CharField(null=True)
-    characteristics = ManyToManyField(Characteristics, backref='products')
+    #characteristics = ForeignKeyField(Characteristics, backref='products')
     last_update = DateTimeField(default=datetime.datetime.now)
 
     @classmethod
@@ -203,8 +204,8 @@ class Product(BaseModel):
 
         # Обновление характеристик
         # Сначала удаляем старые связи, затем добавляем новые
-        product.characteristics.clear()
-        product.characteristics.add(characteristics_list)
+        #product.characteristics.clear()
+        #product.characteristics.add(characteristics_list)
 
         return product.id
 
@@ -226,7 +227,7 @@ class Product(BaseModel):
                 print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
             return None
         
-        def find_by_proffile_table(table, name, value, data, **kwargs):
+        def find_by_proffile_table(table, name, value, data, product_id):
             # Получаем Proffile для таблицы, имени и значения
             priffile_table = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == table)
             if priffile_table is None:
@@ -255,7 +256,6 @@ class Product(BaseModel):
                 print(f"No characteristics found for organization '{self.organization.name}'")
                 return []
 
-            characteristics_list = []
             # Проходим по элементам, по два за раз (имя и значение)
             for i in range(0, len(characteristics_elements), 2):
                 name_element = characteristics_elements[i].find('span', itemprop="name")
@@ -277,6 +277,7 @@ class Product(BaseModel):
                 characteristic, created = Characteristics.get_or_create(
                     organization=self.organization,
                     proffile=proffile_name,
+                    product=product_id,
                     name=element_name,
                     defaults={'value': element_value, 'is_color': False, 'disable': disable}
                 )
@@ -285,28 +286,27 @@ class Product(BaseModel):
                     characteristic.disable = disable
                     characteristic.save()
 
-                # Добавляем в список
-                characteristics_list.append(characteristic)
-
-            return characteristics_list
-
-
         if data is not None:
             article = find_by_proffile("article", data)                
             name = find_by_proffile("name", data)
             price = find_by_proffile("price", data)
             image = find_by_proffile("image", data)
-            characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data)
             url_image = self.organization.domain + image if image else ""
             
-            product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image,characteristics_list)
+            product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image)
+
+            characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data,product_id)
+    
 
             if product_id is None:
                 print(f"Product not found for page '{self.page.url}'")
         else:
             print("No data found")
 
-ProductCharacteristics = Product.characteristics.get_through_model()
-
 db.connect()
-db.create_tables([Organization, Product, Proffile, Page, Characteristics, ProductCharacteristics])
+db.create_tables([
+    Organization, 
+    Proffile, 
+    Page,
+    Characteristics,
+    Product])
