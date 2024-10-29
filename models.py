@@ -3,7 +3,6 @@ from bs4 import BeautifulSoup
 import requests
 from parse import parse
 import datetime
-import json
 
 db = SqliteDatabase('./database.db')
 
