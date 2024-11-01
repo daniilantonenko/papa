@@ -1,11 +1,6 @@
 from models import *
-import json
+from utils import load_json
 import copy
-
-def load_json(filename):
-    with open(filename) as f:
-        d = json.load(f)
-        return d
 
 def parse_to_models(data):
     for key, value in data.items():

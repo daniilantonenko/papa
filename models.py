@@ -291,10 +291,15 @@ class Product(BaseModel):
             image = find_by_proffile("image", data)
 
             # TODO: Check if image with self domain 
-            if get_domain(image) is not None:
+            image_domain = get_domain(image)
+            if image_domain is not None and image_domain != '':
                 url_image = "/" + download_file(image)
             else:
-                url_image = self.organization.domain + image if image else ""
+                if self.organization.domain is not None:
+                    url_image = "/" + download_file(self.organization.domain + image)
+                else:
+                    print(f"Image domain not found")
+                    url_image = None
 
             product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image)
 

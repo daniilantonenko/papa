@@ -1,6 +1,7 @@
 import re
 import requests
 from urllib.parse import urlparse
+import json
     
 def parse(string: str, template:str) -> str:
     """
@@ -33,3 +34,8 @@ def download_file(url):
 
 def get_domain(url):
     return urlparse(url).netloc
+
+def load_json(filename):
+    with open(filename) as f:
+        d = json.load(f)
+        return d
