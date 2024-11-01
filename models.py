@@ -1,10 +1,24 @@
 from peewee import *
 from bs4 import BeautifulSoup
 import requests
+import re
 from parse import parse
 import datetime
+from urllib.parse import urlparse
 
 db = SqliteDatabase('./database.db')
+
+def download_file(url):
+    url = re.sub(r'^(?!http://)//', 'http://', url)
+    response = requests.get(url)
+    file_Path = 'images/' + url.split('/')[-1]
+
+    if response.status_code == 200:
+        with open(file_Path, 'wb') as file:
+            file.write(response.content)
+            return file_Path
+    else:
+        print('Failed to download file')
 
 class BaseModel(Model):
     class Meta:
@@ -47,7 +61,7 @@ class Proffile(BaseModel):
     organization = ForeignKeyField(Organization, backref='proffiles')
     name = CharField()  # Price
     tag = CharField()  # span
-    attribute = CharField()  # class
+    attribute = CharField(null=True)  # class
     value = CharField(null=True)  # section-price
     template = CharField(null=True)  # \d[\d\w]*
     value_attribute = CharField(null=True)  # content
@@ -59,7 +73,7 @@ class Proffile(BaseModel):
         )
 
     @classmethod
-    def create_or_update(cls, organization, name, tag, attribute, value=None, template=None, value_attribute=None, disable=None):
+    def create_or_update(cls, organization, name, tag, attribute=None, value=None, template=None, value_attribute=None, disable=None):
         proffile = cls.get_or_none(cls.organization == organization, cls.name == name, cls.tag == tag, cls.attribute == attribute, cls.value == value, cls.template == template, cls.value_attribute == value_attribute)
         if proffile is None:
             proffile_id = (Proffile
@@ -216,7 +230,10 @@ class Product(BaseModel):
                 if proffile is None:
                     print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
                     return
-                element = data.find(proffile.tag, {proffile.attribute: proffile.value})
+                if proffile.attribute:
+                    element = data.find(proffile.tag, {proffile.attribute: proffile.value})
+                else:
+                    element = data.find(proffile.tag)
                 if element is not None:
                     if proffile.value_attribute:
                         element = element.attrs.get(proffile.value_attribute, '')
@@ -290,8 +307,14 @@ class Product(BaseModel):
             name = find_by_proffile("name", data)
             price = find_by_proffile("price", data)
             image = find_by_proffile("image", data)
-            url_image = self.organization.domain + image if image else ""
-            
+
+            # TODO: Check if image with self domain 
+            self_domain = urlparse(image).netloc
+            if self_domain is not None:
+                url_image = "/" + download_file(image)
+            else:
+                url_image = self.organization.domain + image if image else ""
+
             product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image)
 
             characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data,product_id)
