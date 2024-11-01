@@ -1,24 +1,9 @@
 from peewee import *
 from bs4 import BeautifulSoup
-import requests
-import re
-from parse import parse
+from utils import *
 import datetime
-from urllib.parse import urlparse
 
 db = SqliteDatabase('./database.db')
-
-def download_file(url):
-    url = re.sub(r'^(?!http://)//', 'http://', url)
-    response = requests.get(url)
-    file_Path = 'images/' + url.split('/')[-1]
-
-    if response.status_code == 200:
-        with open(file_Path, 'wb') as file:
-            file.write(response.content)
-            return file_Path
-    else:
-        print('Failed to download file')
 
 class BaseModel(Model):
     class Meta:
@@ -32,12 +17,9 @@ class Organization(BaseModel):
 
     @classmethod
     def create_or_update(cls, name, domain):
-        try:
-            response = requests.head(domain, timeout=2)
-            if response.status_code != 200:
-                print(f"Missing domain status code for: {domain}")
-        except requests.RequestException:
-            print(f"Missing domain or unavailable 2 seconds: {domain}")
+        status_code = get_response(domain).status_code
+        if status_code != 200:
+            print(f"Missing domain status code for: {domain}")
 
         org = cls.get_or_none(cls.name == name, cls.domain == domain)
 
@@ -121,16 +103,16 @@ class Page(BaseModel):
         return page_id
     
     def scan(self):
-        try:
-            response = requests.get(self.url)
+        response = get_response(self.url)
+        if response.status_code == 200:
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
             self.save()
             return soup
-        except requests.RequestException as e:
-            print(f"Failed to scan {self.url}: {e}")
+        else:
+            print(f"Failed to scan {self.url}: {response.status_code}")
             return None
-
+        
 # TODO: add characteristics
 # Table Characteristics
 # organization = 1
@@ -309,8 +291,7 @@ class Product(BaseModel):
             image = find_by_proffile("image", data)
 
             # TODO: Check if image with self domain 
-            self_domain = urlparse(image).netloc
-            if self_domain is not None:
+            if get_domain(image) is not None:
                 url_image = "/" + download_file(image)
             else:
                 url_image = self.organization.domain + image if image else ""
