@@ -1,6 +1,6 @@
 from peewee import *
-from bs4 import BeautifulSoup
 from utils import *
+from parser import get_soup
 import datetime
 
 db = SqliteDatabase('./database.db')
@@ -106,31 +106,13 @@ class Page(BaseModel):
         response = get_response(self.url)
         if response.status_code == 200:
             response.raise_for_status()
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = get_soup(response)
             self.save()
             return soup
         else:
             print(f"Failed to scan {self.url}: {response.status_code}")
             return None
         
-# TODO: add characteristics
-# Table Characteristics
-# organization = 1
-# proffile = 13
-# name = Цвет
-# values = Белый, Черный, Красный
-# is_color = True
-
-# Proffiles example:
-
-# characteristics_name
-# span
-# itemprop = name
-
-# characteristics_value
-# span
-# itemprop = value
-
 class Characteristics(BaseModel):
     organization = ForeignKeyField(Organization, backref='organizations')
     proffile = ForeignKeyField(Proffile, backref='proffiles')
@@ -197,11 +179,6 @@ class Product(BaseModel):
             product.image = image
             product.save()
 
-        # Обновление характеристик
-        # Сначала удаляем старые связи, затем добавляем новые
-        #product.characteristics.clear()
-        #product.characteristics.add(characteristics_list)
-
         return product.id
 
     def save_data(self, data):
@@ -229,24 +206,24 @@ class Product(BaseModel):
             # Получаем Proffile для таблицы, имени и значения
             priffile_table = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == table)
             if priffile_table is None:
-                print(f"Proffile '{table}' not found for organization '{self.organization.name}'")
-                return []
+                #print(f"Proffile '{table}' not found for organization '{self.organization.name}'")
+                return None
 
             proffile_name = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == name)
             if proffile_name is None:
                 print(f"Proffile '{name}' not found for organization '{self.organization.name}'")
-                return []
+                return None
 
             proffile_value = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == value)
             if proffile_value is None:
                 print(f"Proffile '{value}' not found for organization '{self.organization.name}'")
-                return []
+                return None
 
             # Поиск элемента таблицы
             element_table = data.find(priffile_table.tag, {priffile_table.attribute: priffile_table.value})
             if element_table is None:
                 print(f"Table not found")
-                return []
+                return None
 
             # Найдем все элементы таблицы
             characteristics_elements = element_table.find_all('td')

@@ -2,6 +2,7 @@ import re
 import requests
 from urllib.parse import urlparse
 import json
+import chardet
     
 def parse(string: str, template:str) -> str:
     """
@@ -39,3 +40,7 @@ def load_json(filename):
     with open(filename) as f:
         d = json.load(f)
         return d
+
+def get_encoding_url(response):
+    encoding = chardet.detect(response.content)['encoding']
+    return encoding
