@@ -8,7 +8,6 @@ async def save_to_database(data):
     for key, value in data.items():
         if key == 'Organization':
             for item in value:
-
                 item_clear = copy.deepcopy(item)
                 key_to_remove = 'Proffile'
                 if key_to_remove in item_clear:
@@ -22,13 +21,12 @@ async def save_to_database(data):
                 if key_to_remove3 in item_clear:
                     item_clear.pop(key_to_remove3)
 
-                org_id = await Organization.create_or_update(**item_clear)
-                #print("organization:", org_id)
+                org_id =  Organization.create_or_update(**item_clear)
 
                 for k, v in item.items():
                     if k == 'Proffile':
                         for p in v:
-                             Proffile.create_or_update(organization=org_id,**p)
+                            proffile_id = Proffile.create_or_update(organization=org_id,**p)
                             #print("proffile:", proffile_id)
                     elif k == 'Urls':
                         for u in v:
@@ -40,11 +38,11 @@ async def save_to_database(data):
                             # TODO: Передавать параметры filter, deepth, exclude
                             for l in links:
                                 #print(f'link: {l}')
-                                Page.create_or_update(organization=org_id, url=l)
+                                 Page.create_or_update(organization=org_id, url=l)
                             
 async def scan(urls, organization):
     for url in urls:
-        page = Page.create_or_update(organization=organization, url=url)
+        page =  Page.create_or_update(organization=organization, url=url)
         if page is not None and page > 0:
             p = Page.get(id=page)
 

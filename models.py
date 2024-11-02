@@ -8,43 +8,34 @@ class BaseModel(Model):
     class Meta:
         database = db
 
-    # @classmethod
-    # def create_or_update(cls, **kwargs):
-    #     model = cls.get_or_none(**kwargs)
-    #     if model is None:
-    #         model_id = cls.insert(**kwargs).execute()
-    #     else:
-    #         model_id = model.id
-    #     return model_id
+    @classmethod
+    def create_or_update(cls, **kwargs):
+        try:
+            # Фильтруем условия только с полями, которые есть в модели
+            conditions = {field: value for field, value in kwargs.items() if hasattr(cls, field)}
+
+            # Проверяем наличие записи по этим условиям
+            instance = cls.get_or_none(**conditions)
+
+            if instance:
+                # Если запись найдена, обновляем её
+                for key, value in kwargs.items():
+                    if hasattr(instance, key):
+                        setattr(instance, key, value)
+                instance.save()
+                return instance.id
+            else:
+                # Иначе создаём новую запись
+                instance = cls.create(**kwargs)
+                return instance.id
+
+        except Exception as e:
+            print(f"Error in {cls.__name__}.create_or_update: {e}")
+            return None
 
 class Organization(BaseModel):
     name = CharField(unique=True)
     domain = CharField()
-
-    @classmethod
-    async def create_or_update(cls, name, domain):
-        response = await get_response(domain)
-        if response is None:
-            print(f"Error: Organization domain'{domain}' not found")
-            return
-
-        org = cls.get_or_none(cls.name == name, cls.domain == domain)
-
-        if org is None:
-            organization_id = (Organization
-                .insert(name=name, domain=domain)
-                .on_conflict(
-                    conflict_target=[Organization.name],
-                    preserve=[Organization.id],
-                    update={
-                        Organization.domain: domain
-                    }
-                )
-                .execute())
-        else:
-            organization_id = org.id
-
-        return organization_id
 
 class Proffile(BaseModel):
     organization = ForeignKeyField(Organization, backref='proffiles')
@@ -56,58 +47,21 @@ class Proffile(BaseModel):
     value_attribute = CharField(null=True)  # content
     disable = TextField(null=True)
 
+    # NOT WORKING:
+
+    #                 "disable": [
+    #                     "Торговая марка",
+    #                     "Цвет основ."
+    #                 ]
+
     class Meta:
         indexes = (
             (("organization", "name"), True),
         )
 
-    @classmethod
-    def create_or_update(cls, organization, name, tag, attribute=None, value=None, template=None, value_attribute=None, disable=None):
-        proffile = cls.get_or_none(cls.organization == organization, cls.name == name, cls.tag == tag, cls.attribute == attribute, cls.value == value, cls.template == template, cls.value_attribute == value_attribute)
-        if proffile is None:
-            proffile_id = (Proffile
-                .insert(organization=organization, name=name, tag=tag, attribute=attribute, value=value, template=template, value_attribute=value_attribute, disable=disable)
-                .on_conflict(
-                    conflict_target=[Proffile.organization, Proffile.name],
-                    preserve=[Proffile.id],
-                    update={
-                        Proffile.tag: tag,
-                        Proffile.attribute: attribute,
-                        Proffile.value: value,
-                        Proffile.template: template,
-                        Proffile.value_attribute: value_attribute,
-                        Proffile.disable: disable
-                    }
-                )
-                .execute())
-        else:
-            proffile_id = proffile.id
-        return proffile_id
-
 class Page(BaseModel):
     url = CharField(unique=True)
     organization = ForeignKeyField(Organization, backref='pages')
-
-    @classmethod    
-    def create_or_update(cls, organization, url):
-
-        page = cls.get_or_none(cls.organization == organization, cls.url == url)
-
-        if page is None:
-            page_id = (Page
-                .insert(organization=organization, url=url)
-            .on_conflict(
-                conflict_target=[Page.url],
-                preserve=[Page.id],
-                update={
-                    Page.url: url
-                }
-            )
-            .execute())
-        else:
-            page_id = page.id
-
-        return page_id
 
 class Characteristics(BaseModel):
     organization = ForeignKeyField(Organization, backref='organizations')
@@ -123,26 +77,6 @@ class Characteristics(BaseModel):
             (("organization", "name", "product"), True),
         )
 
-    @classmethod
-    def create_or_update(cls, organization, proffile, product, name, value, is_color,disable):
-        characteristics = cls.get_or_none(cls.organization == organization, cls.proffile == proffile,cls.product == product, cls.name == name, cls.value == value, cls.is_color == is_color, cls.disable == disable)
-        if characteristics is None:
-            characteristics_id = (Characteristics
-                .insert(organization=organization, proffile=proffile,product=product, name=name, value=value, is_color=is_color, disable=disable)
-                .on_conflict(
-                    conflict_target=[Characteristics.organization, Characteristics.name,Characteristics.product],
-                    preserve=[Characteristics.id],
-                    update={
-                        Characteristics.value: value,
-                        Characteristics.is_color: is_color,
-                        Characteristics.disable: disable
-                    }
-                )
-                .execute())
-        else:
-            characteristics_id = characteristics.id
-        return characteristics_id
-
 class Product(BaseModel):
     organization = ForeignKeyField(Organization, backref='products')
     page = ForeignKeyField(Page, backref='products', unique=True)
@@ -150,32 +84,7 @@ class Product(BaseModel):
     name = CharField(null=True)
     price = CharField(null=True)
     image = CharField(null=True)
-    #characteristics = ForeignKeyField(Characteristics, backref='products')
     last_update = DateTimeField(default=datetime.datetime.now)
-
-    @classmethod
-    def create_or_update(cls, organization, page, article, name, price, image, characteristics_list=None):
-        product = cls.get_or_none(cls.page == page)
-
-        if product is None:
-            # Создание нового продукта
-            product = cls.create(
-                organization=organization,
-                page=page,
-                article=article,
-                name=name,
-                price=price,
-                image=image
-            )
-        else:
-            # Обновление существующего продукта
-            product.article = article
-            product.name = name
-            product.price = price
-            product.image = image
-            product.save()
-
-        return product.id
 
     async def save_data(self, data):
         
@@ -214,18 +123,22 @@ class Product(BaseModel):
             if proffile_value is None:
                 print(f"Proffile '{value}' not found for organization '{self.organization.name}'")
                 return None
-
+            
             # Поиск элемента таблицы
             element_table = data.find(priffile_table.tag, {priffile_table.attribute: priffile_table.value})
             if element_table is None:
+                #print(f"element_table not found for organization '{self.organization.name}'")
+                #print(f'proffile_table: {priffile_table}, proffile_name: {proffile_name}, proffile_value: {proffile_value}')
                 return None
-
+            
+            #print(f"Table '{table}' found for organization '{self.organization.name}'")
+            
             # Найдем все элементы таблицы
             characteristics_elements = element_table.find_all('td')
             if not characteristics_elements:
                 print(f"No characteristics found for organization '{self.organization.name}'")
                 return []
-
+            
             # Проходим по элементам, по два за раз (имя и значение)
             for i in range(0, len(characteristics_elements), 2):
                 name_element = characteristics_elements[i].find('span', itemprop="name")
@@ -237,8 +150,8 @@ class Product(BaseModel):
                 element_value = value_element.text.strip() if value_element and hasattr(value_element, 'text') else None
                 if not element_value:
                     continue
-
-                if element_name in proffile_name.disable:
+            
+                if proffile_name.disable and element_name in proffile_name.disable:
                     disable = True
                 else:
                     disable = False
@@ -249,7 +162,9 @@ class Product(BaseModel):
                     proffile=proffile_name,
                     product=product_id,
                     name=element_name,
-                    defaults={'value': element_value, 'is_color': False, 'disable': disable}
+                    value=element_value,
+                    is_color=False,
+                    disable=disable
                 )
                 if not created:
                     characteristic.value = element_value
@@ -276,7 +191,14 @@ class Product(BaseModel):
             else:
                 url_image = None
 
-            product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image)
+            product_id = Product.create_or_update(
+                organization=self.organization,
+                page=self.page,
+                article=article,
+                name=name,
+                price=price,
+                image=url_image
+            )
 
             characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data,product_id)
     
