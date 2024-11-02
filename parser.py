@@ -122,7 +122,10 @@ class BinaryTreeUrls:
 
     def _get_all_urls(self, node, prefix, urls, exclude):
         if node.value:
-            prefix += node.value + '/'
+            if prefix:
+                prefix += node.value + '/' 
+            else:
+                prefix += node.value + '//'
         if not node.children:
             # Получаем исключаемую часть пути в зависимости от значения exclude
             if exclude > 0:
@@ -133,7 +136,7 @@ class BinaryTreeUrls:
                 if not any(url. startswith(prefix_without_suffix) for url in urls):
                     urls.append(prefix)
                     #print(prefix)
-            else:
+        if not node.children:
                 urls.append(prefix)
         else:
             for child in node.children.values():
