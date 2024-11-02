@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from utils import get_response, get_encoding_url
 
 
-def save_to_database(data):
+async def save_to_database(data):
     for key, value in data.items():
         if key == 'Organization':
             for item in value:
@@ -22,34 +22,45 @@ def save_to_database(data):
                 if key_to_remove3 in item_clear:
                     item_clear.pop(key_to_remove3)
 
-                org_id = Organization.create_or_update(**item_clear)
+                org_id = await Organization.create_or_update(**item_clear)
                 #print("organization:", org_id)
 
                 for k, v in item.items():
                     if k == 'Proffile':
                         for p in v:
-                            proffile_id = Proffile.create_or_update(organization=org_id,**p)
+                             Proffile.create_or_update(organization=org_id,**p)
                             #print("proffile:", proffile_id)
                     elif k == 'Urls':
                         for u in v:
-                            page_id = Page.create_or_update(organization=org_id, url=u)
+                             Page.create_or_update(organization=org_id, url=u)
                             #print("page:", page_id)
                     elif k == 'Sitemaps':
                         for s in v:
-                            print(s)
-                            #page_id = Page.create_or_update(organization=org_id, url=u)
+                            links = await get_links_sitemap(url=s,filter=None,deepth=8,exclude=1)
+                            # TODO: Передавать параметры filter, deepth, exclude
+                            for l in links:
+                                #print(f'link: {l}')
+                                Page.create_or_update(organization=org_id, url=l)
                             
-def scan(urls, organization):
+async def scan(urls, organization):
     for url in urls:
-        #print(organization, url)
         page = Page.create_or_update(organization=organization, url=url)
         if page is not None and page > 0:
             p = Page.get(id=page)
-            data = p.scan()
+
+            response = await get_response(p.url)
+            if response is not None:
+                soup = get_soup(response)
+                p.save()
+            else:
+                print(f"Page creation failed for {url}, response is None")
+                return
+        
+            data = soup
 
             if data is not None:
                 product = Product(organization=organization, page=p)
-                product.save_data(data=data)
+                await product.save_data(data=data)
             else:
                 print(f"No data found failed for {p.url}")
                 return
@@ -57,12 +68,12 @@ def scan(urls, organization):
             print(f"Page creation failed for {url}")
             return
 
-def scan_all():
+async def scan_all():
     orgs = Organization.select()
     for org in orgs:
         urls = org.pages
         urls_list = [url.url for url in urls]
-        scan(urls_list, org)
+        await scan(urls_list, org)
 
 def get_soup(response):
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -123,7 +134,7 @@ class BinaryTreeUrls:
                 # Добавляем уникальный адрес только если в urls ещё нет похожего с этим ключом
                 if not any(url. startswith(prefix_without_suffix) for url in urls):
                     urls.append(prefix)
-                    print(prefix)
+                    #print(prefix)
             else:
                 urls.append(prefix)
         else:
@@ -137,7 +148,7 @@ class BinaryTreeUrls:
         for child in node.children.values():
             self.print_tree(child, level + 1)
 
-def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
+async def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
     """
     Downloads a sitemap and parses it to retrieve all URLs.
 
@@ -147,8 +158,12 @@ def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
         deepth (int): An optional integer to filter the URLs by.
         exclude (int): An optional integer to filter the URLs by.
     """
-    r = get_response(url)
-    encoding = get_encoding_url(r)
+    r = await get_response(url)
+    if r is None:
+        print(f"Страница sitemap {url} не существует")
+        return
+        
+    encoding = await get_encoding_url(r)
     try:
         soup = BeautifulSoup(r.content.decode(encoding, errors='ignore'), 'xml')
     except UnicodeDecodeError as e:
@@ -159,20 +174,23 @@ def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
 
     tree = BinaryTreeUrls()
     for link in links:
-        r = get_response(link)
-        
-        if r.status_code == 200:
+        r = await get_response(link)
+        # Пропускаем ссылки, которые не возвращают 200 код
+        if r is None:
+            print(f"Страница {link} не существует")
+            continue
+        else:
             # TODO filter: if filter is not None and filter in link
+            #print(f'Link:{link},deepth:{deepth}')
             if deepth is not None and deepth > 0:
                 if link.count("/") == deepth:
                     tree.add_url(link)
-                    
                 else:
-                    tree.add_url(link)
-        else:
-            pass
-            #print(f"Страница {link} не существует - status code: {r.status_code}")
-
-        return tree.get_all_urls(exclude=exclude)
+                    continue
+                    #tree.add_url(link)
+    tree_urls = tree.get_all_urls(exclude=exclude)
+    if tree_urls is not None:
+        return tree_urls
+    return None
 
 # TODO: catalog scanner

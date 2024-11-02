@@ -17,16 +17,27 @@ def parse(string: str, template:str) -> str:
     else:
         return None
     
-def get_response(url):
-    response = requests.get(url)
-    return response
+async def get_response(url):
+    try:
+        response = requests.get(url)
+        if response.status_code != 200:
+            print(f"Warning: Status code {response.status_code} for URL: {url}")
+        return response
+    except requests.exceptions.MissingSchema:
+        print(f"Error: Invalid URL '{url}': No host supplied, URL: {url}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error: {e}, URL: {url}")
+    return None
 
-def download_file(url):
+
+async def download_file(url):
+    if url is None:
+        return
     url = re.sub(r'^(?!http://)//', 'http://', url)
-    response = get_response(url)
+    response = await get_response(url)
     file_Path = 'images/' + url.split('/')[-1]
 
-    if response.status_code == 200:
+    if response is not None:
         with open(file_Path, 'wb') as file:
             file.write(response.content)
             return file_Path
@@ -41,6 +52,6 @@ def load_json(filename):
         d = json.load(f)
         return d
 
-def get_encoding_url(response):
+async def get_encoding_url(response):
     encoding = chardet.detect(response.content)['encoding']
     return encoding

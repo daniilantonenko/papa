@@ -1,6 +1,5 @@
 from peewee import *
 from utils import *
-from parser import get_soup
 import datetime
 
 db = SqliteDatabase('./database.db')
@@ -9,17 +8,25 @@ class BaseModel(Model):
     class Meta:
         database = db
 
-    # TODO: def create_or_update(self, **kwargs):
+    # @classmethod
+    # def create_or_update(cls, **kwargs):
+    #     model = cls.get_or_none(**kwargs)
+    #     if model is None:
+    #         model_id = cls.insert(**kwargs).execute()
+    #     else:
+    #         model_id = model.id
+    #     return model_id
 
 class Organization(BaseModel):
     name = CharField(unique=True)
     domain = CharField()
 
     @classmethod
-    def create_or_update(cls, name, domain):
-        status_code = get_response(domain).status_code
-        if status_code != 200:
-            print(f"Missing domain status code for: {domain}")
+    async def create_or_update(cls, name, domain):
+        response = await get_response(domain)
+        if response is None:
+            print(f"Error: Organization domain'{domain}' not found")
+            return
 
         org = cls.get_or_none(cls.name == name, cls.domain == domain)
 
@@ -101,18 +108,7 @@ class Page(BaseModel):
             page_id = page.id
 
         return page_id
-    
-    def scan(self):
-        response = get_response(self.url)
-        if response.status_code == 200:
-            response.raise_for_status()
-            soup = get_soup(response)
-            self.save()
-            return soup
-        else:
-            print(f"Failed to scan {self.url}: {response.status_code}")
-            return None
-        
+
 class Characteristics(BaseModel):
     organization = ForeignKeyField(Organization, backref='organizations')
     proffile = ForeignKeyField(Proffile, backref='proffiles')
@@ -181,7 +177,7 @@ class Product(BaseModel):
 
         return product.id
 
-    def save_data(self, data):
+    async def save_data(self, data):
         
         def find_by_proffile(proffile_name, data):
             try:
@@ -222,7 +218,6 @@ class Product(BaseModel):
             # Поиск элемента таблицы
             element_table = data.find(priffile_table.tag, {priffile_table.attribute: priffile_table.value})
             if element_table is None:
-                print(f"Table not found")
                 return None
 
             # Найдем все элементы таблицы
@@ -267,16 +262,19 @@ class Product(BaseModel):
             price = find_by_proffile("price", data)
             image = find_by_proffile("image", data)
 
-            # TODO: Check if image with self domain 
             image_domain = get_domain(image)
-            if image_domain is not None and image_domain != '':
-                url_image = "/" + download_file(image)
-            else:
-                if self.organization.domain is not None:
-                    url_image = "/" + download_file(self.organization.domain + image)
+
+            if image is not None:
+                if image_domain is not None and image_domain != '':
+                    url_image = "/" + await download_file(image)
                 else:
-                    print(f"Image domain not found")
-                    url_image = None
+                    if self.organization.domain is not None:
+                        url_image = "/" + await download_file(self.organization.domain + image)
+                    else:
+                        print(f"Image domain not found")
+                        url_image = None
+            else:
+                url_image = None
 
             product_id =  Product.create_or_update(self.organization, self.page, article, name, price, url_image)
 

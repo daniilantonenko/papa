@@ -1,8 +1,13 @@
+import asyncio
 from utils import load_json
 from parser import *
 
-# Load new data to database
-j = load_json('data.json')
-save_to_database(j)
+async def main():
+    # Load new data to database
+    j = load_json('data.json')
+    await save_to_database(j)
 
-scan_all()
+    # Scan all Organizations
+    await scan_all()
+
+asyncio.run(main())
