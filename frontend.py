@@ -105,48 +105,39 @@ def admin_page():
 
         for i, organization in enumerate(config['Organization']):
             with ui.card() as card:
-                ui.label(f'Организация {i+1}').classes('font-bold my_card')
+                ui.label(f'{organization['name']}').classes('font-bold my_card')
+                ui.label(f'{organization['domain']}')
                 ui.button('Удалить', on_click=lambda i=i: config['Organization'].pop(i) and card.delete()).props('icon=delete color=grey-5').classes('float-right')
-
-                organization_name = ui.input(value=organization['name'], label='Название')
-                organization_domain = ui.input(value=organization['domain'], label='Домен')
                 
-
                 ui.label('Профили')
                 profiles = organization.get('Proffile', [])
                 
                 def add_profile():
-                    profiles.append({'name': '', 'tag': '', 'attribute': '', 'value': '', 'template': '', 'value_attribute': ''})
-                    ui.notify('Профиль добавлен')
+                    pass
                 
-                with ui.row().classes('flex flex-wrap'):
-                    for j, profile in enumerate(profiles):
-                        with ui.card().classes('col-4') as card:
-                            ui.label(f'Профиль {j+1}').classes('font-bold')
-                            profile_name = ui.input(value=profile.get('name', ''),label='Название')
-                            profile_tag = ui.input(value=profile.get('tag', ''),label='Тег')
-                            profile_attribute = ui.input(value=profile.get('attribute', ''),label='Атрибут')
-                            profile_value = ui.input(value=profile.get('value', ''), label='Значение')
-                            profile_template = ui.input(value=profile.get('template', ''), label='Шаблон')
-                            profile_value_attribute = ui.input(value=profile.get('value_attribute', ''), label='Значение атрибута')
-                            
-                            ui.button('Удалить', on_click=lambda j=j: profiles.pop(j) and card.delete()).classes('bg-red-500 text-white float-right')
-                            
+                if len(profiles) == 0:
+                    add_profile()
+                else:
+                    profiles_table = [{'name': profile.get('name', ''), 'tag': profile.get('tag', ''), 
+                    'attribute': profile.get('attribute', ''), 'value': profile.get('value', ''), 
+                    'template': profile.get('template', ''), 'value_attribute': profile.get('value_attribute', '')} 
+                    for profile in organization.get('Proffile', [])]
+                    
+                    ui.table(rows=profiles_table)
+
                 ui.button('Добавить профиль', on_click=add_profile)
 
                 ui.label('URLs')
                 urls = organization.get('Urls', [])
                 
                 def add_url():
-                    urls.append('')
-                    ui.notify('URL добавлен')
+                    pass
                 
-                for k, url in enumerate(urls):
-                    with ui.card() as card:
-                        ui.label(f'URL {k+1}')
-                        url_input = ui.input(value=url, label='Адрес страницы')
-                        
-                        ui.button('Удалить', on_click=lambda k=k: urls.pop(k) and card.delete()).classes('bg-red-500 text-white float-right')
+                if len(urls) == 0:
+                    add_url()
+                else:
+                    urls_table = [{'url': url} for url in urls]
+                    ui.table(rows=urls_table)
 
                 ui.button('Добавить URL', on_click=add_url)
 
@@ -157,27 +148,27 @@ def admin_page():
             new_config = {
                 'Organization': []
             }
-            for i, organization in enumerate(config['Organization']):
-                new_config['Organization'].append({
-                    'name': organization_name.value,
-                    'domain': organization_domain.value,
-                    'Proffile': [],
-                    'Urls': []
-                })
-                for j, profile in enumerate(organization['Proffile']):
-                    new_config['Organization'][i]['Proffile'].append({
-                        'name': profile_name.value,
-                        'tag': profile_tag.value,
-                        'attribute': profile_attribute.value,
-                        'value': profile_value.value,
-                        'template': profile_template.value,
-                        'value_attribute': profile_value_attribute.value
-                    })
-                for k, url in enumerate(organization['Urls']):
-                    new_config['Organization'][i]['Urls'].append(url_input.value)
-            with open('config.json', 'w') as f:
-                json.dump(new_config, f)
-            ui.notify('Конфигурация сохранена')
+            # for i, organization in enumerate(config['Organization']):
+            #     new_config['Organization'].append({
+            #         'name': organization_name.value,
+            #         'domain': organization_domain.value,
+            #         'Proffile': [],
+            #         'Urls': []
+            #     })
+            #     for j, profile in enumerate(organization['Proffile']):
+            #         new_config['Organization'][i]['Proffile'].append({
+            #             'name': profile_name.value,
+            #             'tag': profile_tag.value,
+            #             'attribute': profile_attribute.value,
+            #             'value': profile_value.value,
+            #             'template': profile_template.value,
+            #             'value_attribute': profile_value_attribute.value
+            #         })
+            #     for k, url in enumerate(organization['Urls']):
+            #         new_config['Organization'][i]['Urls'].append(url_input.value)
+            # with open('config.json', 'w') as f:
+            #     json.dump(new_config, f)
+            # ui.notify('Конфигурация сохранена')
 
         ui.button('Сохранить', on_click=save_config)
 
