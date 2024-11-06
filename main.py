@@ -1,13 +1,7 @@
+from frontend import *
+from nicegui import app
 from utils import load_json
-from parser import *
-from nicegui import app, ui
-
-@ui.page('/')
-def main_page():
-    ui.page_title('Catalog')
-    ui.run(favicon="🚀")
-
-    ui.button('Scan', on_click=scan)
+from parser import save_to_database, scan_all
 
 @app.get('/scan')
 async def scan():
@@ -26,10 +20,8 @@ async def load_save_scan():
 
     print('Done!')
 
-
 def handle_shutdown():
     print('Shutdown has been initiated!')
 
 app.on_shutdown(handle_shutdown)
 ui.run()
-
