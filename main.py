@@ -3,6 +3,8 @@ from nicegui import app
 from utils import load_json
 from parser import save_to_database, scan_all
 
+app.add_static_files('/images', 'images')
+
 @app.get('/scan')
 async def scan():
     await load_save_scan()
