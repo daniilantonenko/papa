@@ -84,95 +84,117 @@ def product_page(id):
         # Display a "not found" message
         ui.markdown('# Product not found')
 
+class PageExpansion:
+    def __init__(self, container) -> None:
+        self.container = container
+    
+    def add(self, org=None):
+        with self.container:
+            i = self.count_row(self.container)
+            #name = f"{org["name"]}"
+            with ui.expansion(text=f'{org["name"]}' if org else "New oranisation", caption=f'{org["domain"]}' if org else "domain", icon='work').classes('w-full') as row:
+                self.org_content(org)
+                ui.button('Удалить', on_click=lambda: self.container.remove(row))
+    
+    def count_row(self, element):
+        return len(list(element)) 
+    
+    def org_content(self, organization):
+        with ui.column().classes('w-full') as org:
+            
+            ui.label('Профили')
+            if not organization:
+                pass
+            
+            profiles = organization.get('Proffile', [])
+            
+            
+            def add_profile():
+                pass
+            
+            if len(profiles) == 0:
+                add_profile()
+            else:
+                rows = [{'name': profile.get('name', ''), 'tag': profile.get('tag', ''), 
+                'attribute': profile.get('attribute', ''), 'value': profile.get('value', ''), 
+                'template': profile.get('template', ''), 'value_attribute': profile.get('value_attribute', '')} 
+                for profile in organization.get('Proffile', [])]
+                
+                def handle_cell_value_change(e):
+                    new_row = e.args['data']
+                    ui.notify(f'Updated row to: {e.args["data"]}')
+                    rows[:] = [row | new_row if row['id'] == new_row['id'] else row for row in rows]
+                    
+                aggrid = ui.aggrid({
+                    'rowData': rows,
+                    'columnDefs': [
+                        {'field': 'name', 'headerName': 'Имя', 'editable': True},
+                        {'field': 'tag', 'headerName': 'Тег', 'editable': True},
+                        {'field': 'attribute', 'headerName': 'Атрибут', 'editable': True},
+                        {'field': 'value', 'headerName': 'Значение', 'editable': True},
+                        {'field': 'template', 'headerName': 'Шаблон', 'editable': True},
+                        {'field': 'value_attribute', 'headerName': 'Атрибут значения', 'editable': True}
+                    ],
+                    'rowSelection': 'multiple',
+                    'stopEditingWhenCellsLoseFocus': True,
+                }).on('cellValueChanged', handle_cell_value_change)
+
+            ui.button('Добавить профиль', on_click=add_profile)
+
+            ui.label('URLs')
+            urls = organization.get('Urls', [])
+            
+            def add_url():
+                pass
+            
+            if len(urls) == 0:
+                add_url()
+            else:
+                urls_table = [{'url': url} for url in urls]
+                ui.table(rows=urls_table)
+
+            ui.button('Добавить URL', on_click=add_url)
+        return
+
+    # def create_rows(self):
+    #     for i in range(len(self.config['Organization'])):
+    #         self.add_org(i)
+    
+    def add_button(self):
+        ui.button('Добавить', on_click=lambda: self.add())
+    
+    def clear_button(self):
+        ui.button('Очистить', on_click=self.container.clear)
+
 # Создание страницы админ-панели
 @ui.page('/admin')
 def admin_page():
-    # Создание веб-интерфейса
     ui.page_title('Админ-панель')
-    # Загрузка конфигурации из файла
+    
     try:
         with open('data.json', 'r') as f:
             config = json.load(f)
     except FileNotFoundError:
         return
     
-    with ui.card():
-        ui.label('Организации').classes('font-bold')
-        
-        def add_organization():
-            config['Organization'].append({'name': '', 'domain': '', 'Proffile': [], 'Urls': []})
-            ui.notify('Организация добавлена')
+    ui.label('Организации').classes('font-bold')
+    admin_page_organization = PageExpansion(ui.row())
 
-        for i, organization in enumerate(config['Organization']):
-            with ui.card() as card:
-                ui.label(f'{organization['name']}').classes('font-bold my_card')
-                ui.label(f'{organization['domain']}')
-                ui.button('Удалить', on_click=lambda i=i: config['Organization'].pop(i) and card.delete()).props('icon=delete color=grey-5').classes('float-right')
-                
-                ui.label('Профили')
-                profiles = organization.get('Proffile', [])
-                
-                def add_profile():
-                    pass
-                
-                if len(profiles) == 0:
-                    add_profile()
-                else:
-                    profiles_table = [{'name': profile.get('name', ''), 'tag': profile.get('tag', ''), 
-                    'attribute': profile.get('attribute', ''), 'value': profile.get('value', ''), 
-                    'template': profile.get('template', ''), 'value_attribute': profile.get('value_attribute', '')} 
-                    for profile in organization.get('Proffile', [])]
-                    
-                    ui.table(rows=profiles_table)
 
-                ui.button('Добавить профиль', on_click=add_profile)
+    for _, organization in enumerate(config['Organization']):
+        admin_page_organization.add(organization)
 
-                ui.label('URLs')
-                urls = organization.get('Urls', [])
-                
-                def add_url():
-                    pass
-                
-                if len(urls) == 0:
-                    add_url()
-                else:
-                    urls_table = [{'url': url} for url in urls]
-                    ui.table(rows=urls_table)
+    admin_page_organization.add_button()
+    admin_page_organization.clear_button()
 
-                ui.button('Добавить URL', on_click=add_url)
+    def save_config():
+        new_config = {
+            'Organization': []
+        }
 
-        ui.button('Добавить организацию', on_click=add_organization)
+    ui.button('Сохранить', on_click=save_config)
 
-        # Создание кнопки для сохранения конфигурации
-        def save_config():
-            new_config = {
-                'Organization': []
-            }
-            # for i, organization in enumerate(config['Organization']):
-            #     new_config['Organization'].append({
-            #         'name': organization_name.value,
-            #         'domain': organization_domain.value,
-            #         'Proffile': [],
-            #         'Urls': []
-            #     })
-            #     for j, profile in enumerate(organization['Proffile']):
-            #         new_config['Organization'][i]['Proffile'].append({
-            #             'name': profile_name.value,
-            #             'tag': profile_tag.value,
-            #             'attribute': profile_attribute.value,
-            #             'value': profile_value.value,
-            #             'template': profile_template.value,
-            #             'value_attribute': profile_value_attribute.value
-            #         })
-            #     for k, url in enumerate(organization['Urls']):
-            #         new_config['Organization'][i]['Urls'].append(url_input.value)
-            # with open('config.json', 'w') as f:
-            #     json.dump(new_config, f)
-            # ui.notify('Конфигурация сохранена')
-
-        ui.button('Сохранить', on_click=save_config)
-
-    # Создание формы для редактирования конфигурации
+# Создание формы для редактирования конфигурации
     
         
         
