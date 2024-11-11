@@ -1,6 +1,8 @@
 from models import *
 import pandas as pd
 from nicegui import ui
+from parser import scan_all
+import asyncio
 
 # Define a function to get product data from your data store
 def get_product(id):
@@ -170,7 +172,22 @@ class PageExpansion:
 @ui.page('/admin')
 def admin_page():
     ui.page_title('Админ-панель')
-    
+
+    async def perform_scan():
+        spinner.visible = True
+        print("Scanning...")
+        await asyncio.sleep(0.1)
+        await scan_all()
+        await asyncio.sleep(0.1)
+        print("Scan completed")
+        spinner.visible = False
+        ui.notify('Сканирование завершено')
+
+    ui.button("Сканировать", on_click=perform_scan)
+
+    spinner = ui.spinner()
+    spinner.visible = False
+
     try:
         with open('data.json', 'r') as f:
             config = json.load(f)
@@ -179,7 +196,6 @@ def admin_page():
     
     ui.label('Организации').classes('font-bold')
     admin_page_organization = PageExpansion(ui.row())
-
 
     for _, organization in enumerate(config['Organization']):
         admin_page_organization.add(organization)

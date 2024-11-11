@@ -194,4 +194,17 @@ async def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
         return tree_urls
     return None
 
+async def load_save_scan():
+    # Load new data to database
+    j = load_json('data.json')
+
+    print('Saving data to database')
+    await save_to_database(j)
+
+    # Scan all Organizations
+    print('Scanning all Organizations')
+    await scan_all()
+
+    print('Done!')
+
 # TODO: catalog scanner
