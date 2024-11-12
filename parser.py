@@ -41,6 +41,7 @@ async def save_to_database(data):
                                  Page.create_or_update(organization=org_id, url=l)
                             
 async def scan(urls, organization):
+    sum = 0
     for url in urls:
         page =  Page.create_or_update(organization=organization, url=url)
         if page is not None and page > 0:
@@ -52,26 +53,33 @@ async def scan(urls, organization):
                 p.save()
             else:
                 print(f"Page creation failed for {url}, response is None")
-                return
+                continue
         
             data = soup
 
             if data is not None:
                 product = Product(organization=organization, page=p)
-                await product.save_data(data=data)
+                count = await product.save_data(data=data)
+                if count is not None:
+                    sum += count
             else:
                 print(f"No data found failed for {p.url}")
-                return
+                continue
         else:
             print(f"Page creation failed for {url}")
-            return
+            continue
+    return sum
 
 async def scan_all():
+    sum = 0
     orgs = Organization.select()
     for org in orgs:
         urls = org.pages
         urls_list = [url.url for url in urls]
-        await scan(urls_list, org)
+        count = await scan(urls_list, org)
+        if count is not None:
+                    sum += count
+    return sum
 
 def get_soup(response):
     soup = BeautifulSoup(response.text, 'html.parser')

@@ -181,11 +181,11 @@ def admin_page():
         spinner.visible = True
         print("Scanning...")
         await asyncio.sleep(0.1)
-        await scan_all()
+        count = await scan_all()
         await asyncio.sleep(0.1)
         print("Scan completed")
         spinner.visible = False
-        ui.notify('Сканирование завершено')
+        ui.notify(f'Сканирование завершено, изменилось {count} страниц')
 
     try:
         with open('data.json', 'r') as f:
@@ -233,8 +233,8 @@ def admin_page():
     with ui.row():
         ui.button('Сохранить', on_click=save_config)
         ui.button("Сканировать", on_click=perform_scan).props('outline')
-        spinner = ui.spinner()
-        spinner.visible = False
+        spinner = ui.spinner(size='2em').classes('m-1')
+        #spinner.visible = False
 
 # Создание формы для редактирования конфигурации
     
