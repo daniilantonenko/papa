@@ -234,7 +234,7 @@ def admin_page():
         ui.button('Сохранить', on_click=save_config)
         ui.button("Сканировать", on_click=perform_scan).props('outline')
         spinner = ui.spinner(size='2em').classes('m-1')
-        #spinner.visible = False
+        spinner.visible = False
 
 # Создание формы для редактирования конфигурации
     
