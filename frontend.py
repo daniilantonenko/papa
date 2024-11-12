@@ -187,32 +187,54 @@ def admin_page():
         spinner.visible = False
         ui.notify('Сканирование завершено')
 
-    ui.button("Сканировать", on_click=perform_scan)
-
-    spinner = ui.spinner()
-    spinner.visible = False
-
     try:
         with open('data.json', 'r') as f:
-            config = json.load(f)
+            try:
+                config = json.load(f)
+            except json.JSONDecodeError:
+                config = {}
     except FileNotFoundError:
         return
     
-    ui.label('Организации').classes('font-bold')
-    admin_page_organization = PageExpansion(ui.row())
+    # ui.label('Организации').classes('font-bold')
+    # admin_page_organization = PageExpansion(ui.row())
 
-    for _, organization in enumerate(config['Organization']):
-        admin_page_organization.add(organization)
+    # for _, organization in enumerate(config['Organization']):
+    #     admin_page_organization.add(organization)
 
-    admin_page_organization.add_button()
-    admin_page_organization.clear_button()
+    # admin_page_organization.add_button()
+    # admin_page_organization.clear_button()
 
-    def save_config():
-        new_config = {
-            'Organization': []
-        }
+    json_editor = ui.json_editor({'content': {'json': config }})
 
-    ui.button('Сохранить', on_click=save_config)
+    async def save_config() -> None:
+        new_config = await json_editor.run_editor_method('get')
+        
+        if 'text' in new_config:
+            new_config = new_config['text']
+            try:
+                new_config = json.loads(new_config)
+            except json.JSONDecodeError:
+                ui.notify('Некорректная конфигурация json')
+                return
+        elif 'json' in new_config:
+            new_config = new_config['json']
+        else:
+            ui.notify('Некорректная конфигурация json_editor')
+            return
+        
+        try:
+            with open('data.json', 'w') as f:
+                json.dump(new_config, f,ensure_ascii=False,indent=4)
+            ui.notify('Конфигурация сохранена')
+        except Exception as e:
+            ui.notify(f'Error saving config: {e}')
+
+    with ui.row():
+        ui.button('Сохранить', on_click=save_config)
+        ui.button("Сканировать", on_click=perform_scan).props('outline')
+        spinner = ui.spinner()
+        spinner.visible = False
 
 # Создание формы для редактирования конфигурации
     
