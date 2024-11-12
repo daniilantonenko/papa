@@ -12,9 +12,10 @@ def get_product(id):
 
 def get_charecteristics(product_id):
     characteristics = Product.get(Product.id == product_id).characteristics
-    characteristics = pd.DataFrame(list(characteristics.dicts()))
-    return characteristics
-
+    if characteristics is None or len(characteristics) == 0:
+        return None
+    return pd.DataFrame(list(characteristics.dicts()))
+ 
 def get_quantity():
     quantity = Product.select().count()
     return quantity
@@ -72,13 +73,16 @@ def product_page(id):
         ui.html(f'''
         <strong>{product.name}</strong>
         <p>{product.article}</p>
+        ''')
+        
+        ui.html(f'''
         <div class="row">
             <div class="col">
                 <img src="{product.image}">
             </div>
             <div class="col">
                 <h2>Характеристики</h2>
-                <table>{ characteristics.to_html(columns=['name', 'value'], index=False,header=False) if characteristics is not None else ''}</table>
+                <table>{characteristics.to_html(columns=['name', 'value'], index=False,header=False) if characteristics is not None else ''}</table>
             </div>
         </div>
         ''')
