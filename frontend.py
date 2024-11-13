@@ -1,7 +1,7 @@
 from models import *
 import pandas as pd
 from nicegui import ui
-from parser import scan_all
+from parser import scan_all, save_to_database
 import asyncio
 
 # Define a function to get product data from your data store
@@ -230,6 +230,12 @@ def admin_page():
         except Exception as e:
             ui.notify(f'Error saving config: {e}')
 
+        try:
+            await save_to_database(new_config)
+        except Exception as e:
+            ui.notify(f'Error saving to database: {e}')
+
+    # Create the UI
     with ui.row():
         ui.button('Сохранить', on_click=save_config)
         ui.button("Сканировать", on_click=perform_scan).props('outline')
