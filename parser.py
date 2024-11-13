@@ -183,20 +183,12 @@ async def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
 
     tree = BinaryTreeUrls()
     for link in links:
-        r = await get_response(link)
-        # Пропускаем ссылки, которые не возвращают 200 код
-        if r is None:
-            print(f"Страница {link} не существует")
-            continue
-        else:
-            # TODO filter: if filter is not None and filter in link
-            #print(f'Link:{link},deepth:{deepth}')
-            if deepth is not None and deepth > 0:
-                if link.count("/") == deepth:
-                    tree.add_url(link)
-                else:
-                    continue
-                    #tree.add_url(link)
+        if deepth is not None and deepth > 0:
+            if link.count("/") == deepth:
+                tree.add_url(link)
+            else:
+                continue
+                #tree.add_url(link)
     tree_urls = tree.get_all_urls(exclude=exclude)
     if tree_urls is not None:
         return tree_urls
