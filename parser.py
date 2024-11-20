@@ -1,10 +1,12 @@
 from models import *
+from utils import get_response, get_encoding_url
 import copy
 from bs4 import BeautifulSoup
-from utils import get_response, get_encoding_url
+import aiohttp
+import asyncio
 
 
-async def save_to_database(data):
+async def save_to_database(data, progress=None):
     for key, value in data.items():
         if key == 'Organization':
             for item in value:
@@ -35,8 +37,17 @@ async def save_to_database(data):
                     elif k == 'Sitemaps':
                         for s in v:
                             links = await get_links_sitemap(url=s,filter=None,deepth=8,exclude=1)
+                            print (links)
+                            # Check URLs status
+                            urls_sitemap = await check_urls(links, progress)
+                            urls_list = []
+                            for url, status in zip(links, urls_sitemap):
+                                if status == 200:
+                                    urls_list.append(url)
+                            print(len(urls_list))
+
                             # TODO: Передавать параметры filter, deepth, exclude
-                            for l in links:
+                            for l in urls_list:
                                 #print(f'link: {l}')
                                  Page.create_or_update(organization=org_id, url=l)
                             
@@ -193,6 +204,23 @@ async def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
     if tree_urls is not None:
         return tree_urls
     return None
+
+sem = asyncio.Semaphore(10)  # limit to 10 concurrent requests
+
+async def send_request(session, url,progress=None):
+    async with sem:
+        async with session.get(url, ssl=False) as response:
+            #if progress:
+            #    progress.update(1)
+            return response.status
+
+async def check_urls(urls,progress=None):
+    async with aiohttp.ClientSession() as session:
+        tasks = [send_request(session, url, progress) for url in urls]
+        results = await asyncio.gather(*tasks)
+        #if progress:
+        #    progress.close()
+        return results
 
 async def load_save_scan():
     # Load new data to database
