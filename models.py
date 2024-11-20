@@ -12,7 +12,8 @@ class BaseModel(Model):
     def create_or_update(cls, **kwargs):
         try:
             # Фильтруем условия только с полями, которые есть в модели
-            conditions = {field: value for field, value in kwargs.items() if hasattr(cls, field)}
+            indexes_fields = [field for field in cls._meta.indexes[0][0] if field in kwargs]
+            conditions = {field: kwargs[field] for field in indexes_fields}
 
             # Проверяем наличие записи по этим условиям
             instance = cls.get_or_none(**conditions)
@@ -31,11 +32,17 @@ class BaseModel(Model):
 
         except Exception as e:
             print(f"Error in {cls.__name__}.create_or_update: {e}")
+            print(kwargs)
             return None
 
 class Organization(BaseModel):
     name = CharField(unique=True)
     domain = CharField()
+
+    class Meta:
+        indexes = (
+            (("name",), True),
+        )
 
 class Proffile(BaseModel):
     organization = ForeignKeyField(Organization, backref='proffiles')
@@ -62,6 +69,11 @@ class Proffile(BaseModel):
 class Page(BaseModel):
     url = CharField(unique=True)
     organization = ForeignKeyField(Organization, backref='pages')
+
+    class Meta:
+        indexes = (
+            (("url","organization"), True),
+        )
 
 class Characteristics(BaseModel):
     organization = ForeignKeyField(Organization, backref='organizations')
@@ -207,6 +219,11 @@ class Product(BaseModel):
                 print(f"Product not found for page '{self.page.url}'")
         else:
             print("No data found")
+
+    class Meta:
+        indexes = (
+            (("organization","page"), True),
+        )
 
 db.connect()
 db.create_tables([
