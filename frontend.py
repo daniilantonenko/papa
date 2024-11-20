@@ -241,6 +241,7 @@ def admin_page():
         ui.button("Сканировать", on_click=perform_scan).props('outline')
         spinner = ui.spinner(size='2em').classes('m-1')
         spinner.visible = False
+        #TODO: Add progress bar
 
 # Создание формы для редактирования конфигурации
     
