@@ -154,9 +154,6 @@ class BinaryTreeUrls:
                 # Добавляем уникальный адрес только если в urls ещё нет похожего с этим ключом
                 if not any(url. startswith(prefix_without_suffix) for url in urls):
                     urls.append(prefix)
-                    #print(prefix)
-        if not node.children:
-                urls.append(prefix)
         else:
             for child in node.children.values():
                 self._get_all_urls(child, prefix, urls, exclude)
