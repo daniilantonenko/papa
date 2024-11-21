@@ -1,8 +1,10 @@
 from models import *
 import pandas as pd
-from nicegui import ui
-from parser import scan_all, save_to_database
+from nicegui import ui, binding
+from parser import scan_all, save_to_database, get_soup
 import asyncio
+import json
+from utils import get_response, find_html
 
 # Define a function to get product data from your data store
 def get_product(id):
@@ -205,8 +207,6 @@ def admin_page():
     # admin_page_organization.add_button()
     # admin_page_organization.clear_button()
 
-    json_editor = ui.json_editor({'content': {'json': config }})
-
     async def save_config() -> None:
         new_config = await json_editor.run_editor_method('get')
         
@@ -235,13 +235,49 @@ def admin_page():
         except Exception as e:
             ui.notify(f'Error saving to database: {e}')
 
+    class AttrDict(dict):
+        def __init__(self, *args, **kwargs):
+            super(AttrDict, self).__init__(*args, **kwargs)
+            self.__dict__ = self
+
+    class Search:
+        data = binding.BindableProperty()
+
+        def __init__(self):
+            self.value = ''
+
+        async def soup_string(self, url):
+            response = await get_response(url)
+            soup = get_soup(response)
+            proffile = AttrDict()
+            proffile.update({
+                **config['Organization'][0]['Proffile'][0],
+            })
+            print(f'Proffile: {proffile}')
+            self.value = find_html(proffile,soup)
+
     # Create the UI
-    with ui.row():
-        ui.button('Сохранить', on_click=save_config)
-        ui.button("Сканировать", on_click=perform_scan).props('outline')
-        spinner = ui.spinner(size='2em').classes('m-1')
-        spinner.visible = False
-        #TODO: Add progress bar
+    json_editor = ui.json_editor({'content': {'json': config }})
+
+    with ui.right_drawer(fixed=False).props('bordered'):
+        ui.label('Исследовать').classes('font-bold')
+        soup = Search()
+        research_url = ui.input('URL')
+        superscan = ui.button('Сканировать', on_click=lambda: soup.soup_string(research_url.value)).props('outline')
+        ui.textarea(label="Soup data").bind_value(soup, 'value')
+
+        # TODO: bind the soup to the UI
+        
+
+    with ui.footer().style('background-color: #eeeeee'):
+        with ui.row():
+            ui.button('Сохранить', on_click=save_config)
+            ui.button("Сканировать", on_click=perform_scan).props('outline')
+            spinner = ui.spinner(size='2em').classes('m-1')
+            spinner.visible = False
+            #TODO: Add progress bar
+            
+            
 
 # Создание формы для редактирования конфигурации
     
