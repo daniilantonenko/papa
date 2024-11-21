@@ -3,8 +3,32 @@ import requests
 from urllib.parse import urlparse
 import json
 import chardet
+
+def find_html(self, data):
+        """
+        Find and extract data from HTML.
+
+        Find an element in the HTML using the tag, attribute and value.
+        If the element is found, extract the text from the element
+        and apply the regex template to it if specified.
+
+        Args:
+            data (BeautifulSoup): The HTML to search in
+
+        Returns:
+            str: The extracted text
+        """
+        if hasattr(self, "attribute") and self.attribute:
+            element = data.find(self.tag, {self.attribute: self.value})
+        else:
+            element = data.find(self.tag)
+        if element is not None:
+            if hasattr(self, "value_attribute") and self.value_attribute:
+                element = element.attrs.get(self.value_attribute, '')
+            text = element.text.strip() if hasattr(element, 'text') else element
+            return regex_extract(text, self.template) if hasattr(self, "template") and  self.template else text
     
-def parse(string: str, template:str) -> str:
+def regex_extract(string: str, template:str) -> str:
     """
     :param string: string contains data
     :param template: template string

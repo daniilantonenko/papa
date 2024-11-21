@@ -1,5 +1,5 @@
 from peewee import *
-from utils import *
+from utils import get_domain, regex_extract, download_file, find_html
 import datetime
 
 db = SqliteDatabase('./database.db')
@@ -103,18 +103,7 @@ class Product(BaseModel):
         def find_by_proffile(proffile_name, data):
             try:
                 proffile = Proffile.get(Proffile.organization == self.organization , Proffile.name == proffile_name)
-                if proffile is None:
-                    print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
-                    return
-                if proffile.attribute:
-                    element = data.find(proffile.tag, {proffile.attribute: proffile.value})
-                else:
-                    element = data.find(proffile.tag)
-                if element is not None:
-                    if proffile.value_attribute:
-                        element = element.attrs.get(proffile.value_attribute, '')
-                    text = element.text.strip() if hasattr(element, 'text') else element
-                    return parse(text, proffile.template) if proffile.template else text
+                return find_html(proffile,data)
             except Proffile.DoesNotExist:
                 print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
             return None
@@ -183,8 +172,10 @@ class Product(BaseModel):
                     characteristic.disable = disable
                     characteristic.save()
 
+            # TODO: return characteristics list instead save to db
+
         if data is not None:
-            article = find_by_proffile("article", data)                
+            article = find_by_proffile("article", data)
             name = find_by_proffile("name", data)
             price = find_by_proffile("price", data)
             image = find_by_proffile("image", data)

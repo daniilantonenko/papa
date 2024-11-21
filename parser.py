@@ -1,10 +1,9 @@
-from models import *
-from utils import get_response, get_encoding_url
+from models import Organization, Proffile, Page, Product
+from utils import get_response, get_encoding_url, regex_extract, load_json
 import copy
 from bs4 import BeautifulSoup
 import aiohttp
 import asyncio
-
 
 async def save_to_database(data, progress=None):
     for key, value in data.items():
@@ -36,16 +35,15 @@ async def save_to_database(data, progress=None):
                             #print("page:", page_id)
                     elif k == 'Sitemaps':
                         for s in v:
+                            print("Start parse sitemap:", s)
                             links = await get_links_sitemap(url=s,filter=None,deepth=8,exclude=1)
-                            print (links)
                             # Check URLs status
                             urls_sitemap = await check_urls(links, progress)
                             urls_list = []
                             for url, status in zip(links, urls_sitemap):
                                 if status == 200:
                                     urls_list.append(url)
-                            print(len(urls_list))
-
+                                    
                             # TODO: Передавать параметры filter, deepth, exclude
                             for l in urls_list:
                                 #print(f'link: {l}')
