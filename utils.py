@@ -81,12 +81,12 @@ async def get_response(url, cache_folder=cache_folder, cache_time=cache_time):
             r._content = content
             return r
 
-async def download_file(url):
+async def download_file(url, directory):
     if url is None:
         return
     url = re.sub(r'^(?!http://)//', 'http://', url)
     response = await get_response(url)
-    file_Path = 'images/' + url.split('/')[-1]
+    file_Path = directory + url.split('/')[-1]
 
     if response is not None:
         with open(file_Path, 'wb') as file:
