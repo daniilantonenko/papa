@@ -3,6 +3,14 @@ import requests
 from urllib.parse import urlparse
 import json
 import chardet
+import aiofiles
+import aiofiles.os as aioos
+import time
+import os
+
+cache_folder = 'cache/'
+os.makedirs(cache_folder, exist_ok=True)
+cache_time = 3600
 
 def find_html(self, data):
         """
@@ -40,8 +48,8 @@ def regex_extract(string: str, template:str) -> str:
         return string.strip()
     else:
         return None
-    
-async def get_response(url):
+
+async def fetch_response(url):
     try:
         response = requests.get(url)
         if response.status_code != 200:
@@ -53,6 +61,25 @@ async def get_response(url):
         print(f"Error: {e}, URL: {url}")
     return None
 
+async def get_response(url, cache_folder=cache_folder, cache_time=cache_time):
+    filename = cache_folder + url.replace('/', '_')
+    try:
+        file_info = await aioos.stat(filename)
+        if time.time() - file_info.st_mtime > cache_time:
+            os.remove(filename)
+            raise FileNotFoundError
+    except FileNotFoundError:
+        response = await fetch_response(url)
+        if response is None:
+            return None
+        async with aiofiles.open(filename, 'wb') as f:
+            await f.write(response.content)
+    else:
+        async with aiofiles.open(filename, 'rb') as f:
+            content = await f.read()
+            r = requests.Response()
+            r._content = content
+            return r
 
 async def download_file(url):
     if url is None:
