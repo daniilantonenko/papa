@@ -272,7 +272,7 @@ def admin_page():
             if response is None:
                 return
             #Get the soup
-            soup = get_soup(response)
+            soup = get_soup(response.text)
 
             #Get the proffiles
             self.proffile_list = []
@@ -287,19 +287,21 @@ def admin_page():
                 self.proffile_list.append(find_html(proffile_attrdict,soup))
 
             self.html = ''
-            for proffile in self.proffile_list:
+            for data in self.proffile_list:
+                # Check if the proffile is an image
                 allow_filetype = ('.jpg', '.png')
-                if proffile.endswith(allow_filetype):
-                    url = domain + proffile
-                    print(url)
+                if data is not None and isinstance(data, str) and data.endswith((allow_filetype)):
+                    url = data if data.startswith(('http://', 'https://', '//')) else domain + data
                     file_path = await download_file(url, 'cache/')
                     if file_path is not None:
                         self.html += '<div><img src="' + file_path + '"></div><br>'
                     else:
                         print("image is none")
                         continue
+                elif data is not None and isinstance(data, str):
+                        self.html += '<div>' + data + '</div><br>'
                 else:
-                    self.html += '<div>' + proffile + '</div><br>'
+                    self.html += '<div>None</div><br>'
 
     # Create the UI
     json_editor = ui.json_editor({'content': {'json': config }})
