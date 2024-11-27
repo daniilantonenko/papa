@@ -58,7 +58,9 @@ async def fetch_response(url, timeout=10):
     except requests.exceptions.MissingSchema:
         print(f"Error: Invalid URL '{url}': No host supplied, URL: {url}")
     except requests.exceptions.RequestException as e:
-        print(f"Error: {e}, URL: {url}")
+        print(f"Error: requests exception: {e}, URL: {url}")
+    except requests.exceptions.ConnectionError as e:
+        print(f"Error: Connection error for URL: {url}. {e}")
     return None
 
 async def get_with_cache(url, cache_folder=cache_folder, cache_time=cache_time):
@@ -115,10 +117,11 @@ async def download_file(url: str, directory: str):
 
     allow_filetype = ('.jpg', '.png')
     if not url.endswith(allow_filetype):
-        print(f'Disallowed get response for url with filetype {url}')
+        print(f'Disallowed downloading file type for {url}')
         return None
 
-    url = re.sub(r'^(?!http://)//', 'http://', url)
+    url = re.sub(r'^//', 'http://', url)
+    url = re.sub(r'^(?!(http|https)://)', 'http://', url)
     response = await fetch_response(url)
     file_path = directory + url.split('/')[-1]
 
