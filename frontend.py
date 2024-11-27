@@ -207,8 +207,8 @@ def admin_page():
     # admin_page_organization.add_button()
     # admin_page_organization.clear_button()
 
-    async def save_config() -> None:
-        new_config = await json_editor.run_editor_method('get')
+    async def get_config_json(editor: ui.json_editor):
+        new_config = await editor.run_editor_method('get')
         
         if 'text' in new_config:
             new_config = new_config['text']
@@ -222,6 +222,11 @@ def admin_page():
         else:
             ui.notify('Некорректная конфигурация json_editor')
             return
+
+        return new_config
+
+    async def save_config() -> None:
+        new_config = await get_config_json()
         
         try:
             with open('data.json', 'w') as f:
@@ -241,32 +246,77 @@ def admin_page():
             self.__dict__ = self
 
     class Search:
-        data = binding.BindableProperty()
+        value = binding.BindableProperty()
+        url = binding.BindableProperty()
+        org = binding.BindableProperty()
+        proffile_list = binding.BindableProperty()
 
         def __init__(self):
-            self.value = ''
+            self.url = ''
+            self.org = ''
+            self.proffile_list = ''
+            self.html = ''
 
-        async def soup_string(self, url):
-            response = await get_response(url)
+        async def soup_string(self,cfg):
+            """
+            Get the HTML response for the given URL and update...
+
+            If the response is not 200, return None.
+            """
+            #Get the response
+            response = await get_response(self.url)
+            if response is None:
+                return
+            #Get the soup
             soup = get_soup(response)
-            proffile = AttrDict()
-            proffile.update({
-                **config['Organization'][0]['Proffile'][0],
-            })
-            print(f'Proffile: {proffile}')
-            self.value = find_html(proffile,soup)
+
+            #Get the proffiles
+            self.proffile_list = []
+            list_proffiles = {org['name']: [proffile for proffile in org['Proffile']] for org in cfg}
+            domain = next((org.get('domain') for org in cfg if org.get('name') == self.org), None)          
+            p_list = [proffile for proffile in list_proffiles[self.org]]
+            for proffile in p_list:
+                proffile_attrdict = AttrDict()
+                proffile_attrdict.update({
+                    **proffile,
+                })
+                self.proffile_list.append(find_html(proffile_attrdict,soup))
+
+            self.html = ''
+            for proffile in self.proffile_list:
+                allow_filetype = ('.jpg', '.png')
+                if proffile.endswith(allow_filetype):
+                    url = domain + proffile
+                    print(url)
+                    file_path = await download_file(url, 'cache/')
+                    if file_path is not None:
+                        self.html += '<div><img src="' + file_path + '"></div><br>'
+                    else:
+                        print("image is none")
+                        continue
+                else:
+                    self.html += '<div>' + proffile + '</div><br>'
 
     # Create the UI
     json_editor = ui.json_editor({'content': {'json': config }})
+    
+    async def update_config() -> None:
+            nonlocal config
+            config = await get_config_json(json_editor)
+
+    json_editor.on_change(lambda: update_config())
 
     with ui.right_drawer(fixed=False).props('bordered'):
         ui.label('Исследовать').classes('font-bold')
         soup = Search()
-        research_url = ui.input('URL')
-        superscan = ui.button('Сканировать', on_click=lambda: soup.soup_string(research_url.value)).props('outline')
-        ui.textarea(label="Soup data").bind_value(soup, 'value')
+        
+        list_orgs = [org['name'] for org in config['Organization']]
 
-        # TODO: bind the soup to the UI
+        research_organization = ui.select(options=list_orgs, label='Организация',value=list_orgs[0]).bind_value(soup, 'org').classes('w-full')
+        research_url = ui.input('URL').bind_value(soup, 'url').classes('w-full')
+        superscan = ui.button('Сканировать', on_click=lambda: soup.soup_string(config['Organization'])).props('outline')
+
+        ui.html('').bind_content(soup, 'html').classes('w-full')
         
 
     with ui.footer().style('background-color: #eeeeee'):
