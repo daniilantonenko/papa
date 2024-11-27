@@ -4,7 +4,7 @@ from nicegui import ui, binding
 from parser import scan_all, save_to_database, get_soup
 import asyncio
 import json
-from utils import get_response, find_html
+from utils import fetch_response, find_html
 
 # Define a function to get product data from your data store
 def get_product(id):
@@ -226,7 +226,8 @@ def admin_page():
         return new_config
 
     async def save_config() -> None:
-        new_config = await get_config_json()
+        nonlocal json_editor
+        new_config = await get_config_json(json_editor)
         
         try:
             with open('data.json', 'w') as f:
@@ -264,7 +265,7 @@ def admin_page():
             If the response is not 200, return None.
             """
             #Get the response
-            response = await get_response(self.url)
+            response = await fetch_response(self.url)
             if response is None:
                 return
             #Get the soup
@@ -300,11 +301,11 @@ def admin_page():
     # Create the UI
     json_editor = ui.json_editor({'content': {'json': config }})
     
-    async def update_config() -> None:
+    async def update_config():
             nonlocal config
             config = await get_config_json(json_editor)
 
-    json_editor.on_change(lambda: update_config())
+    json_editor.on_change(update_config)
 
     with ui.right_drawer(fixed=False).props('bordered'):
         ui.label('Исследовать').classes('font-bold')

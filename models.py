@@ -184,10 +184,18 @@ class Product(BaseModel):
 
             if image is not None:
                 if image_domain is not None and image_domain != '':
-                    url_image = "/" + await download_file(image,'images/')
+                    file = await download_file(image,'images/')
+                    if file is not None:
+                        url_image = "/" + await download_file(image,'images/')
+                    else:
+                        url_image = None
                 else:
                     if self.organization.domain is not None:
-                        url_image = "/" + await download_file(self.organization.domain + image,'images/')
+                        file = await download_file(self.organization.domain + image,'images/')
+                        if file is not None:
+                            url_image = "/" + file
+                        else:
+                            url_image = None
                     else:
                         print(f"Image domain not found")
                         url_image = None

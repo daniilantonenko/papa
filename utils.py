@@ -61,39 +61,72 @@ async def fetch_response(url):
         print(f"Error: {e}, URL: {url}")
     return None
 
-async def get_response(url, cache_folder=cache_folder, cache_time=cache_time):
+async def get_with_cache(url, cache_folder=cache_folder, cache_time=cache_time):
     filename = cache_folder + url.replace('/', '_')
+
+    # Check if the file exists
     try:
         file_info = await aioos.stat(filename)
         if time.time() - file_info.st_mtime > cache_time:
+            print(f"Cache expired for {url}")
             os.remove(filename)
-            raise FileNotFoundError
     except FileNotFoundError:
-        response = await fetch_response(url)
-        if response is None:
-            return None
-        async with aiofiles.open(filename, 'wb') as f:
-            await f.write(response.content)
-    else:
-        async with aiofiles.open(filename, 'rb') as f:
-            content = await f.read()
+        pass
+
+    try:
+        # Check if the file is a file (not a directory)
+        if await aioos.path.isfile(filename):
+            # Read the file
+            async with aiofiles.open(filename, 'rb') as f:
+                print(f"Using cache for {url}")
+                content = await f.read()
             r = requests.Response()
             r._content = content
             return r
+        else:
+            print(f"File {filename} is not a file.")
+    except Exception as e:
+        print(f"Error reading file {filename}: {e}")
 
-async def download_file(url, directory):
+    # If the file doesn't exist or is not a file, download it
+    response = await fetch_response(url)
+    if response is None:
+        return None
+
+    async with aiofiles.open(filename, 'wb') as f:
+        print(f"Downloading {url} | {response.status_code}")
+        await f.write(response.content)
+
+    # Wait for the file to be written before returning
+    await f.close()
+
+    # Read the file
+    async with aiofiles.open(filename, 'rb') as f:
+        content = await f.read()
+    r = requests.Response()
+    r._content = content
+    return r
+
+
+async def download_file(url: str, directory: str):
     if url is None:
-        return
+        return None
+
+    allow_filetype = ('.jpg', '.png')
+    if not url.endswith(allow_filetype):
+        print(f'Disallowed get response for url with filetype {url}')
+        return None
+
     url = re.sub(r'^(?!http://)//', 'http://', url)
-    response = await get_response(url)
-    file_Path = directory + url.split('/')[-1]
+    response = await fetch_response(url)
+    file_path = directory + url.split('/')[-1]
 
     if response is not None:
-        with open(file_Path, 'wb') as file:
+        with open(file_path, 'wb') as file:
             file.write(response.content)
-            return file_Path
+            return file_path
     else:
-        print('Failed to download file')
+        print(f'Failed to download file from {url}')
 
 def get_domain(url):
     return urlparse(url).netloc

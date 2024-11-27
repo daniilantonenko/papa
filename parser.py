@@ -1,5 +1,5 @@
 from models import Organization, Proffile, Page, Product
-from utils import get_response, get_encoding_url, regex_extract, load_json
+from utils import get_encoding_url, regex_extract, load_json, fetch_response, get_with_cache
 import copy
 from bs4 import BeautifulSoup
 import aiohttp
@@ -48,6 +48,7 @@ async def save_to_database(data, progress=None):
                             for l in urls_list:
                                 #print(f'link: {l}')
                                  Page.create_or_update(organization=org_id, url=l)
+                            print("End parse sitemap")
                             
 async def scan(urls, organization):
     sum = 0
@@ -55,16 +56,21 @@ async def scan(urls, organization):
         page =  Page.create_or_update(organization=organization, url=url)
         if page is not None and page > 0:
             p = Page.get(id=page)
+            
 
-            response = await get_response(p.url)
-            if response is not None:
-                soup = get_soup(response)
-                p.save()
-            else:
+            # response = await get_with_cache(p.url)
+            # if response is not None:
+            #     soup = get_soup(response.text)
+            #     p.save()
+            # else:
+            #     print(f"Page creation failed for {url}, response is None")
+            #     continue
+            
+            page = await get_with_cache(p.url)
+            if page is None:
                 print(f"Page creation failed for {url}, response is None")
                 continue
-        
-            data = soup
+            data = get_soup(page.text)
 
             if data is not None:
                 product = Product(organization=organization, page=p)
@@ -90,8 +96,17 @@ async def scan_all():
                     sum += count
     return sum
 
-def get_soup(response):
-    soup = BeautifulSoup(response.text, 'html.parser')
+def get_soup(data: str) -> BeautifulSoup:
+    """
+    Takes a string of HTML data and returns a BeautifulSoup object.
+
+    Args:
+        data (str): The HTML data to parse
+
+    Returns:
+        A BeautifulSoup object representing the parsed HTML
+    """
+    soup = BeautifulSoup(data, 'html.parser')
     return soup
 
 class Node:
@@ -173,7 +188,7 @@ async def get_links_sitemap(url,filter=None,deepth=None,exclude=None):
         deepth (int): An optional integer to filter the URLs by.
         exclude (int): An optional integer to filter the URLs by.
     """
-    r = await get_response(url)
+    r = await fetch_response(url)
     if r is None:
         print(f"Страница sitemap {url} не существует")
         return
