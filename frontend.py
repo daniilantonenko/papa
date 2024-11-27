@@ -181,13 +181,16 @@ def admin_page():
 
     async def perform_scan():
         spinner.visible = True
-        print("Scanning...")
-        await asyncio.sleep(0.1)
-        count = await scan_all()
-        await asyncio.sleep(0.1)
-        print("Scan completed")
-        spinner.visible = False
-        ui.notify(f'Сканирование завершено, изменилось {count} страниц')
+        try:
+            print("Scanning...")
+            task = asyncio.create_task(scan_all())
+            result = await task
+            print("Scan completed")
+            ui.notify(f'Сканирование завершено, изменилось {result} страниц')
+        except Exception as e:
+            print(f"Error: {e}")
+        finally:
+            spinner.visible = False
 
     try:
         with open('data.json', 'r') as f:

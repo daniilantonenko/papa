@@ -49,9 +49,9 @@ def regex_extract(string: str, template:str) -> str:
     else:
         return None
 
-async def fetch_response(url):
+async def fetch_response(url, timeout=10):
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=timeout)
         if response.status_code != 200:
             print(f"Warning: Status code {response.status_code} for URL: {url}")
         return response
@@ -66,7 +66,7 @@ async def get_with_cache(url, cache_folder=cache_folder, cache_time=cache_time):
 
     # Check if the file exists
     try:
-        file_info = await aioos.stat(filename)
+        file_info = await aioos.stat(filename) 
         if time.time() - file_info.st_mtime > cache_time:
             print(f"Cache expired for {url}")
             os.remove(filename)
@@ -84,7 +84,8 @@ async def get_with_cache(url, cache_folder=cache_folder, cache_time=cache_time):
             r._content = content
             return r
         else:
-            print(f"File {filename} is not a file.")
+            # File doesn't exist
+            pass
     except Exception as e:
         print(f"Error reading file {filename}: {e}")
 

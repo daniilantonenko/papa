@@ -1,6 +1,6 @@
 import unittest
 
-from utils import get_domain, get_response
+from utils import get_domain, fetch_response
 
 
 class TestGetDomain(unittest.TestCase):
@@ -10,8 +10,8 @@ class TestGetDomain(unittest.TestCase):
         self.assertEqual(get_domain(url), expected_domain)
 
 
-class TestGetResponse(unittest.TestCase):
-    def test_get_response(self):
+class TestFetchResponse(unittest.TestCase):
+    def test_fetch_response(self):
         url = 'https://example.com'
-        response = get_response(url)
+        response = fetch_response(url)
         self.assertIsNotNone(response)
