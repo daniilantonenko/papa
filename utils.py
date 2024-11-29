@@ -30,11 +30,20 @@ def find_html(self, data):
             element = data.find(self.tag, {self.attribute: self.value})
         else:
             element = data.find(self.tag)
+
+        text = element
+    
         if element is not None:
+            # Extract text from element
             if hasattr(self, "value_attribute") and self.value_attribute:
                 element = element.attrs.get(self.value_attribute, '')
             text = element.text.strip() if hasattr(element, 'text') else element
-            return regex_extract(text, self.template) if hasattr(self, "template") and  self.template else text
+            # Apply regex template
+            if hasattr(self, "template") and self.template:
+                extract_text = regex_extract(text, self.template)
+                if extract_text and extract_text != '':
+                    return extract_text
+        return text
 
 def extract_chars(soup, table, name, value) -> dict:
             """
