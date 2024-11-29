@@ -1,5 +1,5 @@
 from peewee import *
-from utils import get_domain, regex_extract, download_file, find_html
+from utils import get_domain, regex_extract, download_file, find_html, extract_chars
 import datetime
 
 db = SqliteDatabase('./database.db')
@@ -100,79 +100,19 @@ class Product(BaseModel):
 
     async def save_data(self, data):
         
-        def find_by_proffile(proffile_name, data):
+        def get_proffile(proffile_name: str) -> Proffile | None:
             try:
                 proffile = Proffile.get(Proffile.organization == self.organization , Proffile.name == proffile_name)
-                return find_html(proffile,data)
+                return proffile
             except Proffile.DoesNotExist:
                 print(f"Proffile '{proffile_name}' not found for organization '{self.organization.name}'")
             return None
         
-        def find_by_proffile_table(table, name, value, data, product_id):
-            # Получаем Proffile для таблицы, имени и значения
-            priffile_table = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == table)
-            if priffile_table is None:
-                #print(f"Proffile '{table}' not found for organization '{self.organization.name}'")
+        def find_by_proffile(proffile_name: str, data):
+            proffile = get_proffile(proffile_name)
+            if proffile is None:
                 return None
-
-            proffile_name = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == name)
-            if proffile_name is None:
-                print(f"Proffile '{name}' not found for organization '{self.organization.name}'")
-                return None
-
-            proffile_value = Proffile.get_or_none(Proffile.organization == self.organization, Proffile.name == value)
-            if proffile_value is None:
-                print(f"Proffile '{value}' not found for organization '{self.organization.name}'")
-                return None
-            
-            # Поиск элемента таблицы
-            element_table = data.find(priffile_table.tag, {priffile_table.attribute: priffile_table.value})
-            if element_table is None:
-                #print(f"element_table not found for organization '{self.organization.name}'")
-                #print(f'proffile_table: {priffile_table}, proffile_name: {proffile_name}, proffile_value: {proffile_value}')
-                return None
-            
-            #print(f"Table '{table}' found for organization '{self.organization.name}'")
-            
-            # Найдем все элементы таблицы
-            characteristics_elements = element_table.find_all('td')
-            if not characteristics_elements:
-                print(f"No characteristics found for organization '{self.organization.name}'")
-                return []
-            
-            # Проходим по элементам, по два за раз (имя и значение)
-            for i in range(0, len(characteristics_elements), 2):
-                name_element = characteristics_elements[i].find('span', itemprop="name")
-                element_name = name_element.text.strip() if name_element and hasattr(name_element, 'text') else None
-                if not element_name:
-                    continue
-
-                value_element = characteristics_elements[i + 1].find('span', itemprop="value")
-                element_value = value_element.text.strip() if value_element and hasattr(value_element, 'text') else None
-                if not element_value:
-                    continue
-            
-                if proffile_name.disable and element_name in proffile_name.disable:
-                    disable = True
-                else:
-                    disable = False
-
-                # Создание или обновление характеристики
-                characteristic, created = Characteristics.get_or_create(
-                    organization=self.organization,
-                    proffile=proffile_name,
-                    product=product_id,
-                    name=element_name,
-                    value=element_value,
-                    is_color=False,
-                    disable=disable
-                )
-                if not created:
-                    characteristic.value = element_value
-                    characteristic.disable = disable
-                    characteristic.save()
-
-            # TODO: return characteristics list instead save to db
+            return find_html(proffile,data)
 
         if data is not None:
             article = find_by_proffile("article", data)
@@ -211,8 +151,24 @@ class Product(BaseModel):
                 image=url_image
             )
 
-            characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data,product_id)
-    
+            #characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data,product_id)
+            chars_table_proffile = get_proffile("characteristics_table")
+            chars_name_proffile = get_proffile("characteristics_name")
+            chars_value_proffile = get_proffile("characteristics_value")
+
+            characteristics_list = extract_chars(data, chars_table_proffile, chars_name_proffile, chars_value_proffile)
+
+            if characteristics_list is not None:
+                for name, value in characteristics_list.items():
+                    Characteristics.create_or_update(
+                        organization=self.organization,
+                        proffile=chars_name_proffile,
+                        product=product_id,
+                        name=name,
+                        value=value,
+                        is_color=False,
+                        disable=False
+                    )
 
             if product_id is None:
                 print(f"Product not found for page '{self.page.url}'")

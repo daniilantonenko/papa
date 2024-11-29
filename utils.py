@@ -35,7 +35,52 @@ def find_html(self, data):
                 element = element.attrs.get(self.value_attribute, '')
             text = element.text.strip() if hasattr(element, 'text') else element
             return regex_extract(text, self.template) if hasattr(self, "template") and  self.template else text
-    
+
+def extract_chars(soup, table, name, value) -> dict:
+            """
+            Extracts characteristics from a BeautifulSoup object.
+
+            Args:
+                soup (BeautifulSoup): The object to extract from.
+                table (AttrDict | Proffile): A dictionary representing the table to extract from.
+                name (AttrDict | Proffile): A dictionary representing the name element in the table.
+                value (AttrDict | Proffile): A dictionary representing the value element in the table.
+
+            Returns:
+                dict: A dictionary with the characteristics where the key is the name and the value is the value.
+            """
+            if soup is None:
+                print("Soup is none")
+                return None
+
+            if hasattr(table, "attribute") and table.attribute:
+                element = soup.find(table.tag, {table.attribute: table.value})
+            else:
+                element = soup.find(table.tag)
+
+            if element is None:
+                print("Element not found")
+                return None
+
+            result = {str:str}
+
+            # Extract characteristics name
+            chars_name_list = []
+            if element.find_all(name.tag):  
+                chars_name = element.find_all(name.tag, {name.attribute: name.value})
+                chars_name_list = [el.text.strip() if hasattr(el, 'text') else el for el in chars_name]
+            
+            # Extract characteristics value
+            chars_value_list = []
+            if element.find_all(value.tag):  
+                chars_value = element.find_all(value.tag, {value.attribute: value.value})
+                chars_value_list = [el.text.strip() if hasattr(el, 'text') else el for el in chars_value]
+
+            # Create dictionary
+            result = {chars_name_list[i]: chars_value_list[i] for i in range(min(len(chars_name_list), len(chars_value_list)))}   
+
+            return result
+
 def regex_extract(string: str, template:str) -> str:
     """
     :param string: string contains data
