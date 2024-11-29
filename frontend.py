@@ -4,7 +4,7 @@ from nicegui import ui, binding
 from parser import scan_all, save_to_database, get_soup
 import asyncio
 import json
-from utils import fetch_response, find_html
+from utils import fetch_response, find_html, extract_chars
 
 # Define a function to get product data from your data store
 def get_product(id):
@@ -276,6 +276,7 @@ def admin_page():
 
             #Get the proffiles
             self.proffile_list = []
+            chats_table, chars_name, chars_value = None, None, None
             list_proffiles = {org['name']: [proffile for proffile in org['Proffile']] for org in cfg}
             domain = next((org.get('domain') for org in cfg if org.get('name') == self.org), None)          
             p_list = [proffile for proffile in list_proffiles[self.org]]
@@ -284,7 +285,19 @@ def admin_page():
                 proffile_attrdict.update({
                     **proffile,
                 })
-                self.proffile_list.append(find_html(proffile_attrdict,soup))
+                if proffile_attrdict['name'] == 'characteristics_table':
+                    chats_table = proffile_attrdict
+                elif proffile_attrdict['name'] == 'characteristics_name':
+                    chars_name = proffile_attrdict
+                elif proffile_attrdict['name'] == 'characteristics_value':
+                    chars_value = proffile_attrdict
+                else:
+                    self.proffile_list.append(find_html(proffile_attrdict,soup))
+            
+            if chats_table and chars_name and chars_value:
+                chars = extract_chars(soup, chats_table, chars_name, chars_value)
+                chars_str = ''.join(f'{key}: {value}<br>' for key, value in chars.items())
+                self.proffile_list.append(chars_str)
 
             self.html = ''
             for data in self.proffile_list:
