@@ -346,10 +346,3 @@ def admin_page():
             spinner.visible = False
             #TODO: Add progress bar
             
-            
-
-# Создание формы для редактирования конфигурации
-    
-        
-        
-ui.run(favicon="🚀")

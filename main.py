@@ -8,4 +8,4 @@ def handle_shutdown():
     print('Shutdown has been initiated!')
 
 app.on_shutdown(handle_shutdown)
-ui.run()
+ui.run(favicon="🚀")
