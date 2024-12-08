@@ -35,6 +35,12 @@ class BaseModel(Model):
             print(kwargs)
             return None
 
+    def delete(self):
+        try:
+            self.delete_instance()
+        except Exception as e:
+            print(f"Error in {self.__class__.__name__}.delete: {e}")
+            
 class Organization(BaseModel):
     name = CharField(unique=True)
     domain = CharField()
