@@ -1,7 +1,7 @@
-from peewee import SqliteDatabase, Model, CharField, ForeignKeyField, DateTimeField, BooleanField, DeferredForeignKey
+from peewee import SqliteDatabase, Model, CharField, ForeignKeyField, DateTimeField
 # from playhouse.migrate import *
 from playhouse.sqlite_ext import JSONField
-from utils import get_domain, download_file, find_html, extract_chars, dict_to_json
+from utils import get_domain, download_file, find_html, extract_chars
 import datetime
 
 db = SqliteDatabase('./database.db')
