@@ -1,8 +1,15 @@
-from peewee import *
-from utils import get_domain, regex_extract, download_file, find_html, extract_chars
+from peewee import SqliteDatabase, Model, CharField, ForeignKeyField, DateTimeField, BooleanField, DeferredForeignKey
+# from playhouse.migrate import *
+from playhouse.sqlite_ext import JSONField
+from utils import get_domain, download_file, find_html, extract_chars, dict_to_json
 import datetime
 
 db = SqliteDatabase('./database.db')
+# migrator = SqliteMigrator(db)
+
+# migrate(
+#     migrator.add_column('Product', 'characteristics', JSONField(null=True))
+# )
 
 class BaseModel(Model):
     class Meta:
@@ -58,14 +65,7 @@ class Proffile(BaseModel):
     value = CharField(null=True)  # section-price
     template = CharField(null=True)  # \d[\d\w]*
     value_attribute = CharField(null=True)  # content
-    disable = TextField(null=True)
-
-    # NOT WORKING:
-
-    #                 "disable": [
-    #                     "Торговая марка",
-    #                     "Цвет основ."
-    #                 ]
+    disable = JSONField(null=True)
 
     class Meta:
         indexes = (
@@ -81,20 +81,6 @@ class Page(BaseModel):
             (("url","organization"), True),
         )
 
-class Characteristics(BaseModel):
-    organization = ForeignKeyField(Organization, backref='organizations')
-    proffile = ForeignKeyField(Proffile, backref='proffiles')
-    product = DeferredForeignKey('Product', backref='characteristics')
-    name = CharField(null=True)
-    value = CharField(null=True)
-    is_color = BooleanField(default=False)
-    disable = BooleanField(default=False)
-
-    class Meta:
-        indexes = (
-            (("organization", "name", "product"), True),
-        )
-
 class Product(BaseModel):
     organization = ForeignKeyField(Organization, backref='products')
     page = ForeignKeyField(Page, backref='products', unique=True)
@@ -103,6 +89,7 @@ class Product(BaseModel):
     price = CharField(null=True)
     image = CharField(null=True)
     last_update = DateTimeField(default=datetime.datetime.now)
+    characteristics = JSONField(null=True)
 
     async def save_data(self, data):
         
@@ -118,7 +105,7 @@ class Product(BaseModel):
             proffile = get_proffile(proffile_name)
             if proffile is None:
                 return None
-            return find_html(proffile,data)
+            return find_html(proffile, data)
 
         if data is not None:
             article = find_by_proffile("article", data)
@@ -130,14 +117,14 @@ class Product(BaseModel):
 
             if image is not None:
                 if image_domain is not None and image_domain != '':
-                    file = await download_file(image,'images/')
+                    file = await download_file(image, 'images/')
                     if file is not None:
-                        url_image = "/" + await download_file(image,'images/')
+                        url_image = "/" + file
                     else:
                         url_image = None
                 else:
                     if self.organization.domain is not None:
-                        file = await download_file(self.organization.domain + image,'images/')
+                        file = await download_file(self.organization.domain + image, 'images/')
                         if file is not None:
                             url_image = "/" + file
                         else:
@@ -148,42 +135,36 @@ class Product(BaseModel):
             else:
                 url_image = None
 
+            chars_table_proffile = get_proffile("characteristics_table")
+            chars_name_proffile = get_proffile("characteristics_name")
+            chars_value_proffile = get_proffile("characteristics_value")
+
+            characteristics_list = extract_chars(data, chars_table_proffile, chars_name_proffile, chars_value_proffile)
+            
+            # Remove disabled characteristics
+            if chars_name_proffile.disable is not None:
+                for char in chars_name_proffile.disable:
+                    if char in characteristics_list:
+                        characteristics_list.pop(char)
+    
             product_id = Product.create_or_update(
                 organization=self.organization,
                 page=self.page,
                 article=article,
                 name=name,
                 price=price,
-                image=url_image
+                image=url_image,
+                characteristics=characteristics_list
             )
-
-            #characteristics_list = find_by_proffile_table("characteristics_table","characteristics_name","characteristics_value", data,product_id)
-            chars_table_proffile = get_proffile("characteristics_table")
-            chars_name_proffile = get_proffile("characteristics_name")
-            chars_value_proffile = get_proffile("characteristics_value")
-
-            characteristics_list = extract_chars(data, chars_table_proffile, chars_name_proffile, chars_value_proffile)
-
-            if characteristics_list is not None:
-                for name, value in characteristics_list.items():
-                    Characteristics.create_or_update(
-                        organization=self.organization,
-                        proffile=chars_name_proffile,
-                        product=product_id,
-                        name=name,
-                        value=value,
-                        is_color=False,
-                        disable=False
-                    )
-
+            
             if product_id is None:
-                print(f"Product not found for page '{self.page.url}'")
+                print(f"Product not saved for page '{self.page.url}'")
         else:
             print("No data found")
 
     class Meta:
         indexes = (
-            (("organization","page"), True),
+            (("organization", "page"), True),
         )
 
 db.connect()
@@ -191,5 +172,4 @@ db.create_tables([
     Organization, 
     Proffile, 
     Page,
-    Characteristics,
     Product])
