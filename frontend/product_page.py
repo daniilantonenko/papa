@@ -9,6 +9,7 @@ def content(id) -> None:
     
     ui.page_title(product.name)
     characteristics = product.characteristics
+    chars_dict = {key:value for key, value in characteristics.items()}
 
     ui.button('Назад', on_click=lambda: ui.navigate.to('/')).props('outline').style('color: gray; border-color: gray;')
     # Display product details
@@ -24,8 +25,7 @@ def content(id) -> None:
         </div>
         <div class="col">
             <h2>Характеристики</h2>
-            <table>{characteristics if characteristics is not None else ''}</table>
+            <table>{''.join(f'<tr><td>{k}</td><td>{v}</td></tr>' for k,v in chars_dict.items() if v is not None) if characteristics is not None else ''}</table>
         </div>
     </div>
     ''')
-    # <table>{characteristics.to_html(columns=['name', 'value'], index=False,header=False) if characteristics is not None else ''}</table>
