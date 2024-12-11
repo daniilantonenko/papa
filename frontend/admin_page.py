@@ -6,26 +6,21 @@ from utils import fetch_response, find_html, extract_chars, download_file
 
 # Создание страницы админ-панели
 def content() -> None:
-    with ui.header().classes('items-center justify-between'):
-        ui.button('Главная', icon='home').props('flat color=white').on_click(lambda: ui.navigate.to('/'))
-        with ui.row():
-            ui.button('Каталог', icon='store').props('flat color=white').on_click(lambda: ui.navigate.to('/admin/catalog'))
-        ui.button('Админ-панель', icon='settings').props('flat color=white').on_click(lambda: ui.navigate.to('/admin'))
-
     ui.page_title('Админ-панель')
 
     async def perform_scan():
-        spinner.visible = True
+        result = 0
+        
         try:
             print("Scanning...")
             task = asyncio.create_task(scan_all())
             result = await task
-            print("Scan completed")
-            ui.notify(f'Сканирование завершено, изменилось {result} страниц')
         except Exception as e:
             print(f"Error: {e}")
-        finally:
-            spinner.visible = False
+            ui.notify(f'Сканирование завершено с ошибками')
+
+        print("Scan completed")
+        ui.notify(f'Сканирование завершено, изменилось {result} страниц')
 
     try:
         with open('data.json', 'r') as f:
@@ -35,15 +30,6 @@ def content() -> None:
                 config = {}
     except FileNotFoundError:
         return
-    
-    # ui.label('Организации').classes('font-bold')
-    # admin_page_organization = PageExpansion(ui.row())
-
-    # for _, organization in enumerate(config['Organization']):
-    #     admin_page_organization.add(organization)
-
-    # admin_page_organization.add_button()
-    # admin_page_organization.clear_button()
 
     async def get_config_json(editor: ui.json_editor):
         new_config = await editor.run_editor_method('get')
@@ -63,14 +49,13 @@ def content() -> None:
 
         return new_config
 
-    async def save_config() -> None:
+    async def save_config():
         nonlocal json_editor
         new_config = await get_config_json(json_editor)
         
         try:
             with open('data.json', 'w') as f:
                 json.dump(new_config, f,ensure_ascii=False,indent=4)
-            ui.notify('Конфигурация сохранена')
         except Exception as e:
             ui.notify(f'Error saving config: {e}')
 
@@ -78,6 +63,8 @@ def content() -> None:
             await save_to_database(new_config)
         except Exception as e:
             ui.notify(f'Error saving to database: {e}')
+        
+        ui.notify('Конфигурация сохранена')
 
     class AttrDict(dict):
         def __init__(self, *args, **kwargs):
@@ -111,7 +98,7 @@ def content() -> None:
 
             #Get the proffiles
             self.proffile_list = []
-            chats_table, chars_name, chars_value = None, None, None
+            chats_table, chars_name, chars_value, disable_chars = None, None, None, None
             list_proffiles = {org['name']: [proffile for proffile in org['Proffile']] for org in cfg}
             domain = next((org.get('domain') for org in cfg if org.get('name') == self.org), None)          
             p_list = [proffile for proffile in list_proffiles[self.org]]
@@ -124,6 +111,7 @@ def content() -> None:
                     chats_table = proffile_attrdict
                 elif proffile_attrdict['name'] == 'characteristics_name':
                     chars_name = proffile_attrdict
+                    disable_chars = proffile_attrdict.get('disable', False)
                 elif proffile_attrdict['name'] == 'characteristics_value':
                     chars_value = proffile_attrdict
                 else:
@@ -132,7 +120,7 @@ def content() -> None:
             if chats_table and chars_name and chars_value:
                 chars = extract_chars(soup, chats_table, chars_name, chars_value)
                 if chars is not None:
-                    chars_str = ''.join(f'{key}: {value}<br>' for key, value in chars.items())
+                    chars_str = ''.join(f'{key}: {value}<br>' if key not in disable_chars else '' for key, value in chars.items())
                     self.proffile_list.append(chars_str)
 
             self.html = ''
@@ -151,8 +139,35 @@ def content() -> None:
                         self.html += '<div>' + data + '</div><br>'
                 else:
                     self.html += '<div>None</div><br>'
+    
+    class AsyncButton(ui.button):
+        def __init__(self, *args, onclick_async=None, **kwargs):
+            with ui.row():
+                super().__init__(*args, **kwargs)
+                self.spinner = ui.spinner(size='2em').classes('m-1')
+                self.spinner.visible = False
+            self.on_click(self.async_click)
+            self.onclick_async = onclick_async 
+
+        async def async_click(self):
+            self.spinner.visible = True
+            self.disable()  # Disable the button
+            try:
+                if callable(self.onclick_async):
+                    await self.onclick_async()
+            except Exception as e:
+                print(f"Error: {e}")
+            finally:
+                self.spinner.visible = False
+                self.enable()  # Enable the button
 
     # Create the UI
+    with ui.header().classes('items-center justify-between q-pa-sm'):
+        ui.button('Главная', icon='home').props('flat color=white').on_click(lambda: ui.navigate.to('/'))
+        with ui.row():
+            ui.button('Каталог', icon='store').props('flat color=white').on_click(lambda: ui.navigate.to('/admin/catalog'))
+        ui.button('Админ-панель', icon='settings').props('flat color=white').on_click(lambda: ui.navigate.to('/admin'))
+
     json_editor = ui.json_editor({'content': {'json': config }})
     
     async def update_config():
@@ -169,15 +184,17 @@ def content() -> None:
 
         research_organization = ui.select(options=list_orgs, label='Организация',value=list_orgs[0]).bind_value(soup, 'org').classes('w-full')
         research_url = ui.input('URL').bind_value(soup, 'url').classes('w-full')
-        superscan = ui.button('Сканировать', on_click=lambda: soup.soup_string(config['Organization'])).props('outline')
+        async def super_scan():
+            await soup.soup_string(config['Organization'])
+        superscan_btn = AsyncButton('Сканировать', onclick_async=super_scan).props('outline')
 
         ui.html('').bind_content(soup, 'html').classes('w-full')
         
 
     with ui.footer().style('background-color: #eeeeee'):
         with ui.row():
-            ui.button('Сохранить', on_click=save_config)
-            ui.button("Сканировать", on_click=perform_scan).props('outline')
+            AsyncButton('Сохранить', onclick_async=save_config)
+            AsyncButton('Сканировать', onclick_async=perform_scan).props('outline')
             spinner = ui.spinner(size='2em').classes('m-1')
             spinner.visible = False
             #TODO: Add progress bar
@@ -255,10 +272,6 @@ class PageExpansion:
 
             ui.button('Добавить URL', on_click=add_url)
         return
-
-    # def create_rows(self):
-    #     for i in range(len(self.config['Organization'])):
-    #         self.add_org(i)
     
     def add_button(self):
         ui.button('Добавить', on_click=lambda: self.add())
