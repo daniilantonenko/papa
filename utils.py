@@ -10,7 +10,7 @@ import os
 
 cache_folder = 'cache/'
 os.makedirs(cache_folder, exist_ok=True)
-cache_time = 3600
+cache_time = 3600 * 24 * 7 # week
 
 def find_html(self, data):
         """
