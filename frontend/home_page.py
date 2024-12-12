@@ -1,17 +1,18 @@
 from nicegui import ui
-from frontend.product import get_products, get_quantity
+from frontend.product import get_products
 
 def content() -> None:
     ui.page_title('Каталог')
 
-    # Display product quantity
-    quantity = get_quantity()
-    ui.html(f'''
-        <span>Всего в каталоге: {quantity} шт</span>
-        ''')
-
     products = get_products()
-    table = ui.table.from_pandas(products, row_key='id').props('grid')
+
+    products_per_page = 10
+    products_quantity = len(products)
+    max_page = (products_quantity + products_per_page - 1) // products_per_page
+
+    products_page = products[:products_per_page]
+    
+    table = ui.table.from_pandas(products_page, row_key='id').props('grid')
     table.add_slot('item', r'''
         <q-card flat bordered :props="props" class="m-1 my-card">
             <q-card-section class="text-center">
@@ -24,6 +25,12 @@ def content() -> None:
         </q-card>
     ''')
 
+    p = ui.pagination(1, max_page, direction_links=True)
+
+    def update_table():
+        table.update_from_pandas(products[(p.value - 1) * products_per_page:p.value * products_per_page])
+
+    p.on_value_change(update_table)
 
     ui.add_css('''
         .my-card {
