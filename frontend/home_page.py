@@ -11,6 +11,8 @@ def content() -> None:
     max_page = (products_quantity + products_per_page - 1) // products_per_page
 
     products_page = products[:products_per_page]
+
+    search = ui.input('Поиск').props('clearable')
     
     table = ui.table.from_pandas(products_page, row_key='id').props('grid')
     table.add_slot('item', r'''
@@ -28,10 +30,25 @@ def content() -> None:
     p = ui.pagination(1, max_page, direction_links=True)
 
     def update_table():
-        table.update_from_pandas(products[(p.value - 1) * products_per_page:p.value * products_per_page])
+        name = search.value
+        p_value = p.value
+        p_max = max_page
+        
+        if name == '' or not name:
+            products_page = products[(p_value - 1) * products_per_page:p_value * products_per_page]
+            return
+        else:
+            name = name.lower()
+            filtered_products = products[products['name'].str.lower().str.contains(name, na=False)]
+            products_page = filtered_products[(p_value - 1) * products_per_page:p_value * products_per_page]
+            p_max = (len(filtered_products) + products_per_page - 1) // products_per_page
+        
+        table.update_from_pandas(products_page)
+        p.max = p_max
 
+    search.on_value_change(update_table)
     p.on_value_change(update_table)
-
+    
     ui.add_css('''
         .my-card {
             width: 100%;
