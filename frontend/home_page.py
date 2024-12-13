@@ -36,7 +36,6 @@ def content() -> None:
         
         if name == '' or not name:
             products_page = products[(p_value - 1) * products_per_page:p_value * products_per_page]
-            return
         else:
             name = name.lower()
             filtered_products = products[products['name'].str.lower().str.contains(name, na=False)]
